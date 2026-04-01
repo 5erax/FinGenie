@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -7,24 +7,24 @@ import {
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
-} from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
-import type { User } from '@prisma/client';
-import { UserService } from './user.service';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { UpdateProfileDto } from '../auth/dto/update-profile.dto';
+} from "@nestjs/swagger";
+import { UserRole } from "@prisma/client";
+import type { User } from "@prisma/client";
+import { UserService } from "./user.service";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { UpdateProfileDto } from "../auth/dto/update-profile.dto";
 
-@ApiTags('Users')
+@ApiTags("Users")
 @ApiBearerAuth()
-@Controller('users')
+@Controller("users")
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get('me')
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiOkResponse({ description: 'Current user profile' })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated' })
+  @Get("me")
+  @ApiOperation({ summary: "Get current user profile" })
+  @ApiOkResponse({ description: "Current user profile" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
   async getProfile(@CurrentUser() user: User) {
     return {
       id: user.id,
@@ -38,11 +38,14 @@ export class UserController {
     };
   }
 
-  @Patch('me')
-  @ApiOperation({ summary: 'Update current user profile' })
-  @ApiOkResponse({ description: 'Updated user profile' })
-  @ApiUnauthorizedResponse({ description: 'Not authenticated' })
-  async updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+  @Patch("me")
+  @ApiOperation({ summary: "Update current user profile" })
+  @ApiOkResponse({ description: "Updated user profile" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  async updateProfile(
+    @CurrentUser() user: User,
+    @Body() dto: UpdateProfileDto,
+  ) {
     const updated = await this.userService.updateProfile(user.id, dto);
     return {
       id: updated.id,
@@ -57,18 +60,27 @@ export class UserController {
   }
 
   // Admin endpoints
+  @Get("admin/stats")
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: "Get admin dashboard statistics" })
+  @ApiOkResponse({ description: "Dashboard stats" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async getAdminStats() {
+    return this.userService.getAdminStats();
+  }
+
   @Get()
   @Roles(UserRole.admin)
-  @ApiOperation({ summary: 'List all users (admin only)' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'role', required: false, enum: UserRole })
-  @ApiOkResponse({ description: 'Paginated user list' })
-  @ApiForbiddenResponse({ description: 'Admin access required' })
+  @ApiOperation({ summary: "List all users (admin only)" })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "role", required: false, enum: UserRole })
+  @ApiOkResponse({ description: "Paginated user list" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
   async listUsers(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('role') role?: UserRole,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("role") role?: UserRole,
   ) {
     const { users, total } = await this.userService.findAll({
       page: page ? parseInt(page, 10) : 1,
@@ -92,12 +104,12 @@ export class UserController {
     };
   }
 
-  @Patch(':id/role')
+  @Patch(":id/role")
   @Roles(UserRole.admin)
-  @ApiOperation({ summary: 'Update user role (admin only)' })
-  @ApiOkResponse({ description: 'Updated user' })
-  @ApiForbiddenResponse({ description: 'Admin access required' })
-  async updateRole(@Param('id') id: string, @Body('role') role: UserRole) {
+  @ApiOperation({ summary: "Update user role (admin only)" })
+  @ApiOkResponse({ description: "Updated user" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async updateRole(@Param("id") id: string, @Body("role") role: UserRole) {
     const updated = await this.userService.setRole(id, role);
     return {
       id: updated.id,

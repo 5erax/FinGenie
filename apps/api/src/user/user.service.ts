@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import type { User, UserRole } from '@prisma/client';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import type { User, UserRole } from "@prisma/client";
 
 @Injectable()
 export class UserService {
@@ -8,7 +8,7 @@ export class UserService {
 
   async findById(id: string): Promise<User> {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
     return user;
   }
 
@@ -47,11 +47,70 @@ export class UserService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       this.prisma.user.count({ where }),
     ]);
 
     return { users, total };
+  }
+
+  /** Aggregate counts for admin dashboard */
+  async getAdminStats() {
+    const [
+      totalUsers,
+      totalTransactions,
+      totalWallets,
+      activeSubscriptions,
+      recentUsers,
+      recentTransactions,
+    ] = await this.prisma.$transaction([
+      this.prisma.user.count(),
+      this.prisma.transaction.count(),
+      this.prisma.wallet.count(),
+      this.prisma.subscription.count({
+        where: { status: "active", plan: { not: "free" } },
+      }),
+      this.prisma.user.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.transaction.findMany({
+        take: 10,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          amount: true,
+          type: true,
+          date: true,
+          note: true,
+          category: { select: { name: true } },
+          user: { select: { displayName: true } },
+        },
+      }),
+    ]);
+
+    return {
+      totalUsers,
+      totalTransactions,
+      totalWallets,
+      activeSubscriptions,
+      recentUsers,
+      recentTransactions: recentTransactions.map((tx) => ({
+        id: tx.id,
+        amount: tx.amount.toString(),
+        type: tx.type,
+        categoryName: tx.category.name,
+        userName: tx.user.displayName,
+        date: tx.date.toISOString(),
+      })),
+    };
   }
 }
