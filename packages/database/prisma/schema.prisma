@@ -1,0 +1,302 @@
+// FinGenie Database Schema
+// PostgreSQL hosted on Supabase
+// Prisma ORM v6
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────
+// Enums
+// ─────────────────────────────────────
+
+enum UserRole {
+  user
+  admin
+}
+
+enum WalletType {
+  cash
+  bank
+  e_wallet
+  other
+}
+
+enum Currency {
+  VND
+  USD
+}
+
+enum TransactionType {
+  income
+  expense
+}
+
+enum SafeMoneyMode {
+  basic
+  advanced
+}
+
+enum SubscriptionPlan {
+  free
+  monthly
+  yearly
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+  expired
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  cancelled
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+enum AlertType {
+  overspend
+  budget_warning
+  saving_milestone
+  system
+}
+
+// ─────────────────────────────────────
+// Models
+// ─────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  phone        String?   @unique
+  displayName  String
+  avatarUrl    String?
+  role         UserRole  @default(user)
+  premiumUntil DateTime?
+
+  // Firebase Auth UID for linking
+  firebaseUid String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  wallets       Wallet[]
+  transactions  Transaction[]
+  categories    Category[]
+  savingPlans   SavingPlan[]
+  alerts        AlertEvent[]
+  chatSessions  AIChatSession[]
+  subscriptions Subscription[]
+  paymentOrders PaymentOrder[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id       String     @id @default(cuid())
+  userId   String
+  name     String
+  type     WalletType @default(cash)
+  balance  Decimal    @default(0) @db.Decimal(15, 2)
+  currency Currency   @default(VND)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("wallets")
+}
+
+model Transaction {
+  id         String          @id @default(cuid())
+  walletId   String
+  userId     String
+  amount     Decimal         @db.Decimal(15, 2)
+  type       TransactionType
+  categoryId String
+  note       String?
+  date       DateTime        @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  wallet   Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@index([userId, date])
+  @@index([walletId, date])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  name      String
+  icon      String
+  color     String
+  isDefault Boolean @default(false)
+  userId    String? // null = system default category
+
+  // Relations
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([name, userId])
+  @@index([userId])
+  @@map("categories")
+}
+
+model SavingPlan {
+  id               String  @id @default(cuid())
+  userId           String
+  monthlyIncome    Decimal @db.Decimal(15, 2)
+  fixedExpenses    Decimal @db.Decimal(15, 2)
+  variableExpenses Decimal @db.Decimal(15, 2)
+  savingPercent    Int // 0-100
+  dailyBudget      Decimal @db.Decimal(15, 2)
+  safeMoney        Decimal @db.Decimal(15, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  safeMoneyConfig SafeMoneyConfig?
+
+  @@index([userId])
+  @@map("saving_plans")
+}
+
+model SafeMoneyConfig {
+  id           String        @id @default(cuid())
+  savingPlanId String        @unique
+  mode         SafeMoneyMode @default(basic)
+  sensitivity  Int           @default(50) // 0-100
+  threshold    Decimal       @db.Decimal(15, 2)
+
+  // Relations
+  savingPlan SavingPlan @relation(fields: [savingPlanId], references: [id], onDelete: Cascade)
+
+  @@map("safe_money_configs")
+}
+
+model AlertEvent {
+  id      String    @id @default(cuid())
+  userId  String
+  type    AlertType
+  message String
+  isRead  Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("alert_events")
+}
+
+model AIChatSession {
+  id     String @id @default(cuid())
+  userId String
+  title  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId])
+  @@map("ai_chat_sessions")
+}
+
+model AIMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  role      MessageRole
+  content   String      @db.Text
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  session AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("ai_messages")
+}
+
+model Subscription {
+  id     String             @id @default(cuid())
+  userId String
+  plan   SubscriptionPlan   @default(free)
+  status SubscriptionStatus @default(active)
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrders PaymentOrder[]
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model PaymentOrder {
+  id             String        @id @default(cuid())
+  userId         String
+  subscriptionId String
+  payosOrderId   String        @unique
+  amount         Decimal       @db.Decimal(15, 2)
+  status         PaymentStatus @default(pending)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId])
+  @@index([payosOrderId])
+  @@map("payment_orders")
+}
+
+model PaymentWebhookEvent {
+  id           String    @id @default(cuid())
+  payosOrderId String
+  payload      Json
+  signature    String
+  processedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([payosOrderId])
+  @@map("payment_webhook_events")
+}
