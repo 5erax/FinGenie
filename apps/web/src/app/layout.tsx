@@ -49,8 +49,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className={jakarta.variable}>
-      <body className="font-display bg-zinc-950 text-white antialiased">
+    <html lang="vi" className={jakarta.variable} suppressHydrationWarning>
+      <body
+        className="font-display bg-zinc-950 text-white antialiased"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>

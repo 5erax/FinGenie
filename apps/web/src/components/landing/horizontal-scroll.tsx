@@ -1,10 +1,14 @@
 "use client";
 
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect, useLayoutEffect, type ReactNode } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
+
+// useLayoutEffect on client, useEffect on server (SSR-safe)
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface HorizontalScrollProps {
   children: ReactNode;
@@ -13,42 +17,44 @@ interface HorizontalScrollProps {
 export function HorizontalScroll({ children }: HorizontalScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const ctxRef = useRef<gsap.Context | null>(null);
 
-  useEffect(() => {
-    // Mobile fallback — no horizontal scroll below lg
-    const mm = gsap.matchMedia();
+  useIsomorphicLayoutEffect(() => {
+    // Create a GSAP context scoped to our container — makes cleanup reliable
+    const ctx = gsap.context(() => {
+      // Mobile fallback — no horizontal scroll below lg
+      const mm = gsap.matchMedia();
 
-    mm.add("(min-width: 1024px)", () => {
-      const container = containerRef.current;
-      const scroller = scrollRef.current;
-      if (!container || !scroller) return;
+      mm.add("(min-width: 1024px)", () => {
+        const container = containerRef.current;
+        const scroller = scrollRef.current;
+        if (!container || !scroller) return;
 
-      const panels = gsap.utils.toArray<HTMLElement>(".panel", scroller);
-      if (panels.length === 0) return;
+        const panels = gsap.utils.toArray<HTMLElement>(".panel", scroller);
+        if (panels.length === 0) return;
 
-      // Calculate total scroll width
-      const totalWidth = panels.length * window.innerWidth;
+        // Calculate total scroll width
+        const totalWidth = panels.length * window.innerWidth;
 
-      const tween = gsap.to(scroller, {
-        x: () => -(totalWidth - window.innerWidth),
-        ease: "none",
-        scrollTrigger: {
-          trigger: container,
-          pin: true,
-          scrub: 1,
-          end: () => `+=${totalWidth - window.innerWidth}`,
-          invalidateOnRefresh: true,
-        },
+        gsap.to(scroller, {
+          x: () => -(totalWidth - window.innerWidth),
+          ease: "none",
+          scrollTrigger: {
+            trigger: container,
+            pin: true,
+            scrub: 1,
+            end: () => `+=${totalWidth - window.innerWidth}`,
+            invalidateOnRefresh: true,
+          },
+        });
       });
+    }, containerRef);
 
-      return () => {
-        tween.kill();
-      };
-    });
+    ctxRef.current = ctx;
 
+    // Synchronous cleanup — runs before React removes DOM nodes
     return () => {
-      mm.revert();
-      ScrollTrigger.getAll().forEach((st) => st.kill());
+      ctx.revert();
     };
   }, []);
 
