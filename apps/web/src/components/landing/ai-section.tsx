@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart3, Lightbulb, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -8,9 +9,9 @@ import { cn } from "@/lib/utils";
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const capabilities = [
-  { emoji: "📊", text: "Phân tích chi tiêu thông minh" },
-  { emoji: "💡", text: "Gợi ý tiết kiệm cá nhân hóa" },
-  { emoji: "📈", text: "Dự đoán xu hướng tài chính" },
+  { Icon: BarChart3, text: "Phân tích chi tiêu thông minh" },
+  { Icon: Lightbulb, text: "Gợi ý tiết kiệm cá nhân hóa" },
+  { Icon: TrendingUp, text: "Dự đoán xu hướng tài chính" },
 ] as const;
 
 const chatMessages = [
@@ -97,7 +98,6 @@ export function AiSection() {
       />
 
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-6 py-12 lg:flex-row lg:items-center lg:gap-16 lg:px-12">
-
         {/* ── Left: 40% ── */}
         <div className="flex w-full flex-col gap-8 lg:w-2/5">
           {/* SectionHeading animates itself */}
@@ -123,7 +123,7 @@ export function AiSection() {
                 variants={capabilityVariants}
               >
                 <span className="text-xl leading-none" aria-hidden="true">
-                  {item.emoji}
+                  <item.Icon className="h-6 w-6 text-white" />
                 </span>
                 <span className="font-body text-sm font-medium text-zinc-300">
                   {item.text}
@@ -149,11 +149,17 @@ export function AiSection() {
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-accent-400"
               aria-hidden="true"
             >
-              <span className="font-display text-sm font-black text-zinc-950">F</span>
+              <span className="font-display text-sm font-black text-zinc-950">
+                F
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-display text-sm font-semibold text-white">FinGenie AI</p>
-              <p className="font-body text-xs text-zinc-500">Trợ lý tài chính thông minh</p>
+              <p className="font-display text-sm font-semibold text-white">
+                FinGenie AI
+              </p>
+              <p className="font-body text-xs text-zinc-500">
+                Trợ lý tài chính thông minh
+              </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <span
@@ -165,7 +171,11 @@ export function AiSection() {
           </div>
 
           {/* Messages area */}
-          <div className="flex flex-col gap-4 p-5" role="log" aria-label="Lịch sử chat">
+          <div
+            className="flex flex-col gap-4 p-5"
+            role="log"
+            aria-label="Lịch sử chat"
+          >
             {chatMessages.map((msg, i) => (
               <motion.div
                 key={i}
@@ -184,7 +194,9 @@ export function AiSection() {
                     className="mr-2 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-accent-400"
                     aria-hidden="true"
                   >
-                    <span className="text-[10px] font-black text-zinc-950">F</span>
+                    <span className="text-[10px] font-black text-zinc-950">
+                      F
+                    </span>
                   </div>
                 )}
                 <div

@@ -1,5 +1,6 @@
 "use client";
 
+import { Apple, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
 import { GradientButton } from "@/components/ui/gradient-button";
 
@@ -39,8 +40,10 @@ const itemVariants = {
 
 export function CtaSection() {
   return (
-    <section className="panel relative flex-col bg-zinc-950" aria-label="Call to action">
-
+    <section
+      className="panel relative flex-col bg-zinc-950"
+      aria-label="Call to action"
+    >
       {/* ── Multi-orb background ── */}
       {/* Emerald — top-left */}
       <div
@@ -79,7 +82,10 @@ export function CtaSection() {
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/4 px-4 py-1.5 font-body text-xs font-medium uppercase tracking-widest text-zinc-400"
           variants={itemVariants}
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-warm-400 animate-pulse-glow" aria-hidden="true" />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-warm-400 animate-pulse-glow"
+            aria-hidden="true"
+          />
           Bắt Đầu Hành Trình
         </motion.span>
 
@@ -110,7 +116,8 @@ export function CtaSection() {
           className="max-w-xl font-body text-base leading-relaxed text-zinc-400 lg:text-lg"
           variants={itemVariants}
         >
-          Tải FinGenie ngay hôm nay và bắt đầu kiểm soát tài chính cùng trợ lý AI thông minh nhất.
+          Tải FinGenie ngay hôm nay và bắt đầu kiểm soát tài chính cùng trợ lý
+          AI thông minh nhất.
         </motion.p>
 
         {/* App store buttons */}
@@ -118,12 +125,20 @@ export function CtaSection() {
           className="flex flex-col items-center gap-4 sm:flex-row"
           variants={itemVariants}
         >
-          <GradientButton variant="primary" size="lg" aria-label="Tải về trên App Store">
-            <span aria-hidden="true">🍎</span>
+          <GradientButton
+            variant="primary"
+            size="lg"
+            aria-label="Tải về trên App Store"
+          >
+            <Apple className="h-5 w-5" aria-hidden="true" />
             App Store
           </GradientButton>
-          <GradientButton variant="secondary" size="lg" aria-label="Tải về trên Google Play">
-            <span aria-hidden="true">🤖</span>
+          <GradientButton
+            variant="secondary"
+            size="lg"
+            aria-label="Tải về trên Google Play"
+          >
+            <Smartphone className="h-5 w-5" aria-hidden="true" />
             Google Play
           </GradientButton>
         </motion.div>
@@ -133,7 +148,8 @@ export function CtaSection() {
           className="font-body text-sm text-zinc-500"
           variants={itemVariants}
         >
-          Miễn phí&nbsp;&nbsp;•&nbsp;&nbsp;Không cần thẻ&nbsp;&nbsp;•&nbsp;&nbsp;Bắt đầu trong 30 giây
+          Miễn phí&nbsp;&nbsp;•&nbsp;&nbsp;Không cần
+          thẻ&nbsp;&nbsp;•&nbsp;&nbsp;Bắt đầu trong 30 giây
         </motion.p>
       </motion.div>
 
@@ -150,11 +166,16 @@ export function CtaSection() {
           <p className="font-body text-xs text-zinc-600">
             © 2026 FinGenie. All rights reserved.
           </p>
-          <nav className="flex items-center gap-1" aria-label="Footer navigation">
+          <nav
+            className="flex items-center gap-1"
+            aria-label="Footer navigation"
+          >
             {footerLinks.map((link, i) => (
               <span key={link.label} className="flex items-center">
                 {i > 0 && (
-                  <span className="mx-3 text-zinc-700" aria-hidden="true">|</span>
+                  <span className="mx-3 text-zinc-700" aria-hidden="true">
+                    |
+                  </span>
                 )}
                 <a
                   href={link.href}

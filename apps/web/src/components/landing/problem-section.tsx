@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart3, Frown, HelpCircle } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { motion } from "framer-motion";
@@ -7,21 +8,21 @@ import { motion } from "framer-motion";
 // ── Pain-point data ──────────────────────────────────────────────────────────
 const painPoints = [
   {
-    icon: "📊",
+    Icon: BarChart3,
     title: "Không Biết Tiền Đi Đâu",
     desc: "Chi tiêu hàng ngày mà không theo dõi, cuối tháng lại hết sạch",
     glowColor: "primary" as const,
     accentFrom: "from-primary-400",
   },
   {
-    icon: "😩",
+    Icon: Frown,
     title: "Tiết Kiệm Nhàm Chán",
     desc: "Muốn tiết kiệm nhưng không có động lực, dễ bỏ cuộc giữa chừng",
     glowColor: "accent" as const,
     accentFrom: "from-accent-400",
   },
   {
-    icon: "🤷",
+    Icon: HelpCircle,
     title: "Thiếu Kiến Thức Tài Chính",
     desc: "Không biết hỏi ai, sách vở thì quá khô khan cho Gen Z",
     glowColor: "warm" as const,
@@ -74,7 +75,7 @@ export function ProblemSection() {
             >
               {/* Icon container */}
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-3xl">
-                {point.icon}
+                <point.Icon className="h-6 w-6 text-white" />
               </div>
 
               {/* Text content */}

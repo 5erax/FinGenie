@@ -1,5 +1,6 @@
 "use client";
 
+import { Cat, Gamepad2, Sprout, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -8,9 +9,9 @@ import { cn } from "@/lib/utils";
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const statItems = [
-  { icon: "🌱", text: "Level Up khi tiết kiệm đạt mục tiêu" },
-  { icon: "🎮", text: "Mở khóa trang phục và phụ kiện" },
-  { icon: "🏆", text: "Thử thách hàng tuần với phần thưởng" },
+  { Icon: Sprout, text: "Level Up khi tiết kiệm đạt mục tiêu" },
+  { Icon: Gamepad2, text: "Mở khóa trang phục và phụ kiện" },
+  { Icon: Trophy, text: "Thử thách hàng tuần với phần thưởng" },
 ] as const;
 
 const statusBars = [
@@ -69,7 +70,7 @@ export function PetSection() {
                   role="img"
                   aria-hidden="true"
                 >
-                  {stat.icon}
+                  <stat.Icon className="h-6 w-6 text-white" />
                 </span>
                 <p className="text-sm font-medium text-zinc-300">{stat.text}</p>
               </GlassCard>
@@ -96,7 +97,7 @@ export function PetSection() {
               role="img"
               aria-label="Thú cưng tài chính"
             >
-              🐱
+              <Cat className="h-16 w-16 text-white" />
             </span>
 
             {/* Status bars + level */}

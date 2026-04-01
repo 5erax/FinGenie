@@ -1,5 +1,6 @@
 "use client";
 
+import { Bell, Bot, Target, Wallet } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
@@ -7,27 +8,26 @@ import { SectionHeading } from "@/components/ui/section-heading";
 
 const features = [
   {
-    icon: "💰",
+    Icon: Wallet,
     title: "Ví Thông Minh",
     description:
       "Theo dõi thu chi realtime, phân loại tự động, báo cáo trực quan",
     glowColor: "primary" as const,
   },
   {
-    icon: "🤖",
+    Icon: Bot,
     title: "AI Coach Tài Chính",
     description: "Trợ lý AI hiểu bạn, tư vấn chi tiêu thông minh 24/7",
     glowColor: "accent" as const,
   },
   {
-    icon: "🎯",
+    Icon: Target,
     title: "Kế Hoạch Tiết Kiệm",
-    description:
-      "Tự động tính toán ngân sách hàng ngày với Safe Money AI",
+    description: "Tự động tính toán ngân sách hàng ngày với Safe Money AI",
     glowColor: "primary" as const,
   },
   {
-    icon: "🔔",
+    Icon: Bell,
     title: "Cảnh Báo Thông Minh",
     description:
       "Nhận thông báo khi chi tiêu vượt ngân sách hoặc cần điều chỉnh",
@@ -83,7 +83,7 @@ export function FeaturesSection() {
                 role="img"
                 aria-label={feature.title}
               >
-                {feature.icon}
+                <feature.Icon className="h-6 w-6 text-white" />
               </span>
 
               {/* Text */}
