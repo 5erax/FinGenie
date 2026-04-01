@@ -1,43 +1,46 @@
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 
-type TabIconProps = {
-  emoji: string;
-  focused: boolean;
-};
-
-function TabIcon({ emoji, focused }: TabIconProps) {
-  return (
-    <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>
-  );
-}
+const ACCENT = '#a78bfa';
+const MUTED = '#71717a';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#a78bfa',
-        tabBarInactiveTintColor: '#71717a',
-        tabBarLabelStyle: styles.tabLabel,
+        tabBarStyle: {
+          backgroundColor: '#18181b',
+          borderTopColor: '#27272a',
+          borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 88 : 64,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: ACCENT,
+        tabBarInactiveTintColor: MUTED,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🏠" focused={focused} />
+          title: 'Trang chủ',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="transactions"
         options={{
-          title: 'Transactions',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="💳" focused={focused} />
+          title: 'Giao dịch',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="swap-horizontal-outline" size={size} color={color} />
           ),
         }}
       />
@@ -45,42 +48,20 @@ export default function TabLayout() {
         name="ai-coach"
         options={{
           title: 'AI Coach',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🤖" focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👤" focused={focused} />
+          title: 'Cá nhân',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#18181b',
-    borderTopColor: '#27272a',
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 6,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  icon: {
-    fontSize: 20,
-    opacity: 0.5,
-  },
-  iconFocused: {
-    opacity: 1,
-  },
-});
