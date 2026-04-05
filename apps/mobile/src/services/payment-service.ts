@@ -3,6 +3,8 @@ import type { Subscription, PaymentOrder } from "@fingenie/shared-types";
 
 export interface CreatePaymentDto {
   plan: "monthly" | "yearly";
+  returnUrl?: string;
+  cancelUrl?: string;
 }
 
 export interface PaymentLink {
@@ -14,6 +16,13 @@ export interface PaymentLink {
 export interface PaymentStatusResponse {
   subscription: Subscription | null;
   isPremium: boolean;
+}
+
+export interface VerifyPaymentResponse {
+  status: "success" | "pending" | "expired";
+  isPremium: boolean;
+  premiumUntil: string | null;
+  message: string;
 }
 
 export const paymentService = {
@@ -40,5 +49,16 @@ export const paymentService = {
 
   async cancelPayment(orderCode: string): Promise<void> {
     await api.post(`/payments/${orderCode}/cancel`);
+  },
+
+  /**
+   * Verify a checkout session with Stripe directly.
+   * If paid, activates premium on the backend.
+   */
+  async verifySession(stripeSessionId: string): Promise<VerifyPaymentResponse> {
+    const response = await api.post<VerifyPaymentResponse>(
+      `/payments/verify/${stripeSessionId}`,
+    );
+    return response.data;
   },
 };

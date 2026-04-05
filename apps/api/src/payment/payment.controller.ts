@@ -179,6 +179,67 @@ export class PaymentController {
     return { isPremium, premiumUntil, subscription };
   }
 
+  // ─── POST /payments/verify/:sessionId ───────────────────────────────────
+
+  @Post("verify/:sessionId")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Verify a Stripe checkout session status and activate premium if paid",
+  })
+  @ApiOkResponse({
+    description:
+      "Returns the payment status after checking with Stripe directly",
+  })
+  async verifyPaymentSession(
+    @CurrentUser() user: User,
+    @Param("sessionId") sessionId: string,
+  ) {
+    if (!this.stripeService.isAvailable) {
+      throw new ServiceUnavailableException(
+        "Hệ thống thanh toán hiện không khả dụng.",
+      );
+    }
+
+    // Verify the order belongs to this user
+    await this.subscriptionService.verifyOrderOwnership(user.id, sessionId);
+
+    // Check Stripe session status directly
+    const session = await this.stripeService.getCheckoutSession(sessionId);
+
+    if (session.payment_status === "paid") {
+      // Activate premium (idempotent — safe to call multiple times)
+      await this.subscriptionService.activatePremium(sessionId);
+
+      const { isPremium, premiumUntil } =
+        await this.subscriptionService.checkPremiumStatus(user.id);
+
+      return {
+        status: "success" as const,
+        isPremium,
+        premiumUntil,
+        message: "Thanh toán thành công! Bạn đã là Premium.",
+      };
+    }
+
+    if (session.status === "expired" || session.payment_status === "unpaid") {
+      return {
+        status: "expired" as const,
+        isPremium: false,
+        premiumUntil: null,
+        message: "Phiên thanh toán đã hết hạn. Vui lòng thử lại.",
+      };
+    }
+
+    // Still processing or incomplete
+    return {
+      status: "pending" as const,
+      isPremium: false,
+      premiumUntil: null,
+      message: "Đang xử lý thanh toán...",
+    };
+  }
+
   // ─── GET /payments/history ────────────────────────────────────────────────
 
   @Get("history")

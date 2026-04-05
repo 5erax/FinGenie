@@ -1,4 +1,4 @@
-import { NestFactory, HttpAdapterHost } from "@nestjs/core";
+import { NestFactory } from "@nestjs/core";
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";

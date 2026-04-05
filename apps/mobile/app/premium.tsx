@@ -6,19 +6,21 @@ import {
   Pressable,
   ScrollView,
   Alert,
-  Linking,
   ActivityIndicator,
   TouchableOpacity,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 
 import {
   usePaymentStatus,
   usePaymentHistory,
   useCreatePaymentLink,
   useCancelPayment,
+  useVerifyPayment,
 } from "../src/hooks/use-payment";
 import { formatVND, formatDate } from "../src/utils/format";
 import {
@@ -151,6 +153,7 @@ function FeatureRow({ icon, colorKey, title, description }: FeatureItem) {
 export default function PremiumScreen() {
   const [selectedPlan, setSelectedPlan] = useState<Plan>("yearly");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const colors = useThemeColors();
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -161,6 +164,7 @@ export default function PremiumScreen() {
     useCreatePaymentLink();
   const { mutateAsync: cancelPayment, isPending: cancelling } =
     useCancelPayment();
+  const { mutateAsync: verifyPayment } = useVerifyPayment();
 
   const isPremium = statusData?.isPremium ?? false;
   const subscription = statusData?.subscription ?? null;
@@ -169,8 +173,58 @@ export default function PremiumScreen() {
 
   const handleSubscribe = useCallback(async () => {
     try {
-      const result = await createLink({ plan: selectedPlan });
-      await Linking.openURL(result.paymentLink);
+      // Build return URLs using Expo's deep link scheme
+      const returnUrl = Linking.createURL("payment/success");
+      const cancelUrl = Linking.createURL("payment/cancel");
+
+      const result = await createLink({
+        plan: selectedPlan,
+        returnUrl,
+        cancelUrl,
+      });
+
+      // Open Stripe checkout in an in-app browser
+      // openAuthSessionAsync returns control to the app when the user is
+      // redirected to our deep link (returnUrl or cancelUrl)
+      const browserResult = await WebBrowser.openAuthSessionAsync(
+        result.paymentLink,
+        returnUrl,
+      );
+
+      // After returning from the browser, verify the payment status with Stripe
+      setVerifying(true);
+      try {
+        const verification = await verifyPayment(result.order.stripeSessionId);
+
+        if (verification.status === "success") {
+          Alert.alert(
+            "Thanh toán thành công!",
+            "Chúc mừng bạn đã trở thành thành viên Premium!",
+            [{ text: "Tuyệt vời!" }],
+          );
+        } else if (
+          verification.status === "expired" ||
+          browserResult.type === "cancel"
+        ) {
+          // User cancelled or session expired — no alert needed
+        } else {
+          // Still pending — might take a moment
+          Alert.alert(
+            "Đang xử lý",
+            "Thanh toán của bạn đang được xử lý. Trạng thái sẽ được cập nhật trong giây lát.",
+            [{ text: "OK" }],
+          );
+        }
+      } catch {
+        // Verification failed — but payment might still succeed via webhook
+        Alert.alert(
+          "Không thể xác minh",
+          "Không thể kiểm tra trạng thái thanh toán. Vui lòng kiểm tra lại sau.",
+          [{ text: "OK" }],
+        );
+      } finally {
+        setVerifying(false);
+      }
     } catch {
       Alert.alert(
         "Không thể tạo link thanh toán",
@@ -178,7 +232,7 @@ export default function PremiumScreen() {
         [{ text: "Đóng" }],
       );
     }
-  }, [createLink, selectedPlan]);
+  }, [createLink, selectedPlan, verifyPayment]);
 
   const handleCancelSubscription = useCallback(() => {
     const latestOrder = history?.find((o) => o.status === "success");
@@ -612,10 +666,10 @@ export default function PremiumScreen() {
 
         {/* CTA Button */}
         <PrimaryButton
-          title="Đăng ký ngay"
+          title={verifying ? "Đang xác minh thanh toán..." : "Đăng ký ngay"}
           onPress={handleSubscribe}
-          loading={creating}
-          disabled={creating}
+          loading={creating || verifying}
+          disabled={creating || verifying}
           icon="diamond"
           style={{ marginHorizontal: SPACING.lg, paddingVertical: 17 }}
         />
