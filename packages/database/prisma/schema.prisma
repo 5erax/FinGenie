@@ -75,6 +75,38 @@ enum AlertType {
   system
 }
 
+// ─── Gamification Enums ───────────────
+enum PetType {
+  cat
+  dog
+  rabbit
+  fox
+  dragon
+}
+
+enum PetMood {
+  happy
+  neutral
+  sad
+  hungry
+  excited
+}
+
+enum TaskCategory {
+  saving
+  spending
+  tracking
+  learning
+  streak
+}
+
+enum TaskStatus {
+  pending
+  completed
+  skipped
+  expired
+}
+
 // ─────────────────────────────────────
 // Models
 // ─────────────────────────────────────
@@ -103,6 +135,12 @@ model User {
   chatSessions  AIChatSession[]
   subscriptions Subscription[]
   paymentOrders PaymentOrder[]
+
+  // Gamification
+  pet              Pet?
+  dailyTasks       DailyTask[]
+  achievements     UserAchievement[]
+  streak           UserStreak?
 
   @@map("users")
 }
@@ -145,6 +183,7 @@ model Transaction {
   category Category @relation(fields: [categoryId], references: [id])
 
   @@index([userId, date])
+  @@index([userId, type])
   @@index([walletId, date])
   @@index([categoryId])
   @@map("transactions")
@@ -215,6 +254,7 @@ model AlertEvent {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([userId, type])
   @@map("alert_events")
 }
 
@@ -231,6 +271,7 @@ model AIChatSession {
   messages AIMessage[]
 
   @@index([userId])
+  @@index([userId, updatedAt])
   @@map("ai_chat_sessions")
 }
 
@@ -270,12 +311,12 @@ model Subscription {
 }
 
 model PaymentOrder {
-  id             String        @id @default(cuid())
-  userId         String
-  subscriptionId String
-  payosOrderId   String        @unique
-  amount         Decimal       @db.Decimal(15, 2)
-  status         PaymentStatus @default(pending)
+  id              String        @id @default(cuid())
+  userId          String
+  subscriptionId  String
+  stripeSessionId String        @unique
+  amount          Decimal       @db.Decimal(15, 2)
+  status          PaymentStatus @default(pending)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -285,19 +326,152 @@ model PaymentOrder {
   subscription Subscription @relation(fields: [subscriptionId], references: [id])
 
   @@index([userId])
-  @@index([payosOrderId])
+  @@index([stripeSessionId])
   @@map("payment_orders")
 }
 
 model PaymentWebhookEvent {
-  id           String    @id @default(cuid())
-  payosOrderId String
-  payload      Json
-  signature    String
-  processedAt  DateTime?
+  id              String    @id @default(cuid())
+  stripeSessionId String
+  payload         Json
+  signature       String
+  processedAt     DateTime?
 
   createdAt DateTime @default(now())
 
-  @@index([payosOrderId])
+  @@index([stripeSessionId])
   @@map("payment_webhook_events")
+}
+
+// ─────────────────────────────────────
+// Gamification Models
+// ─────────────────────────────────────
+
+model Pet {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  name      String  @default("Genie")
+  type      PetType @default(cat)
+  level     Int     @default(1)
+  xp        Int     @default(0)
+  xpToNext  Int     @default(100)
+  mood      PetMood @default(happy)
+  hunger    Int     @default(100) // 0-100
+  happiness Int     @default(100) // 0-100
+
+  // Cosmetics
+  equippedHat    String?
+  equippedOutfit String?
+  equippedBg     String?
+
+  lastFedAt    DateTime?
+  lastPlayedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventory PetItem[]
+
+  @@index([userId])
+  @@map("pets")
+}
+
+model PetItem {
+  id       String @id @default(cuid())
+  petId    String
+  itemKey  String // e.g. "hat_crown", "outfit_ninja", "bg_beach"
+  itemType String // "hat", "outfit", "background", "food"
+
+  unlockedAt DateTime @default(now())
+
+  // Relations
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([petId, itemKey])
+  @@index([petId])
+  @@map("pet_items")
+}
+
+model DailyTask {
+  id          String       @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  category    TaskCategory
+  status      TaskStatus   @default(pending)
+  xpReward    Int          @default(10)
+  coinReward  Int          @default(0)
+
+  // Task data (flexible JSON for different task types)
+  targetValue Int? // e.g. "add 3 transactions" → targetValue=3
+  progress    Int  @default(0)
+
+  date      DateTime @db.Date // The day this task is for
+  expiresAt DateTime
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, status])
+  @@map("daily_tasks")
+}
+
+model UserStreak {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  currentStreak  Int      @default(0)
+  longestStreak  Int      @default(0)
+  lastActiveDate DateTime @db.Date
+  totalCoins     Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_streaks")
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  key         String @unique // e.g. "first_transaction", "streak_7", "level_10"
+  name        String
+  description String
+  icon        String
+  xpReward    Int    @default(50)
+  coinReward  Int    @default(0)
+
+  // Unlock condition
+  conditionType  String // "streak", "level", "transactions", "savings"
+  conditionValue Int    // e.g. streak >= 7
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String @id @default(cuid())
+  userId        String
+  achievementId String
+
+  unlockedAt DateTime @default(now())
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@map("user_achievements")
 }

@@ -1,0 +1,30 @@
+Starting project at D:\FinGenie\apps\mobile
+Expo Autolinking module resolution enabled
+Starting Metro Bundler
+
+The following packages should be updated for best compatibility with the installed expo version:
+  @react-native-async-storage/async-storage@3.0.2 - expected version: 2.2.0
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+D:\FinGenie\node_modules\.pnpm\@expo+cli@55.0.19_@expo+dom_0dc54d9237c7f9a0892844681a3c3cf5\node_modules\@expo\cli\build\src\utils\errors.js:130
+    throw error;
+    ^
+
+Error: ENOENT: no such file or directory, watch 'D:\FinGenie\node_modules\.pnpm\lodash@4.17.23\node_modules\lodash_tmp_9228_8'
+    at FSWatcher.<computed> (node:internal/fs/watchers:247:19)
+    at Object.watch (node:fs:2503:36)
+    at FallbackWatcher._watchdir (D:\FinGenie\node_modules\.pnpm\metro-file-map@0.83.3\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:119:33)
+    at D:\FinGenie\node_modules\.pnpm\metro-file-map@0.83.3\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:219:22
+    at Walker.<anonymous> (D:\FinGenie\node_modules\.pnpm\metro-file-map@0.83.3\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:358:5)
+    at Walker.emit (node:events:524:28)
+    at D:\FinGenie\node_modules\.pnpm\walker@1.0.8\node_modules\walker\lib\walker.js:69:16
+    at FSReqCallback.oncomplete (node:fs:187:23) {
+  errno: -4058,
+  syscall: 'watch',
+  code: 'ENOENT',
+  path: 'D:\\FinGenie\\node_modules\\.pnpm\\lodash@4.17.23\\node_modules\\lodash_tmp_9228_8',
+  filename: 'D:\\FinGenie\\node_modules\\.pnpm\\lodash@4.17.23\\node_modules\\lodash_tmp_9228_8'
+}
+
+Node.js v20.20.0

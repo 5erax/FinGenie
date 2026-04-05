@@ -1,7 +1,21 @@
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '@prisma/client';
-import { Type } from 'class-transformer';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { TransactionType } from "@prisma/client";
+import { Transform, Type } from "class-transformer";
+
+/** Convert empty strings to undefined so @IsOptional + @IsDateString work correctly */
+const EmptyToUndefined = () =>
+  Transform(({ value }) =>
+    typeof value === "string" && value.trim() === "" ? undefined : value,
+  );
 
 export class QueryTransactionsDto {
   @ApiPropertyOptional()
@@ -16,16 +30,19 @@ export class QueryTransactionsDto {
 
   @ApiPropertyOptional({ enum: TransactionType })
   @IsOptional()
+  @EmptyToUndefined()
   @IsEnum(TransactionType)
   type?: TransactionType;
 
-  @ApiPropertyOptional({ example: '2026-01-01' })
+  @ApiPropertyOptional({ example: "2026-01-01" })
   @IsOptional()
+  @EmptyToUndefined()
   @IsDateString()
   startDate?: string;
 
-  @ApiPropertyOptional({ example: '2026-12-31' })
+  @ApiPropertyOptional({ example: "2026-12-31" })
   @IsOptional()
+  @EmptyToUndefined()
   @IsDateString()
   endDate?: string;
 

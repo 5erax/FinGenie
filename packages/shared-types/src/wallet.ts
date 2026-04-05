@@ -1,5 +1,5 @@
-export type WalletType = 'cash' | 'bank' | 'e-wallet' | 'other';
-export type Currency = 'VND' | 'USD';
+export type WalletType = "cash" | "bank" | "e_wallet" | "other";
+export type Currency = "VND" | "USD";
 
 export interface Wallet {
   id: string;

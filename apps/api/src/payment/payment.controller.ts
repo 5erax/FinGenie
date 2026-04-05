@@ -2,13 +2,16 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
   Post,
   Query,
-} from '@nestjs/common';
+  RawBody,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -16,96 +19,142 @@ import {
   ApiOperation,
   ApiQuery,
   ApiTags,
-} from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
-import type { User } from '@prisma/client';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Public } from '../auth/decorators/public.decorator';
-import { PayosService } from './payos.service';
-import { SubscriptionService, PLAN_PRICING } from './subscription.service';
-import { CreatePaymentDto } from './dto';
+} from "@nestjs/swagger";
+import { ConfigService } from "@nestjs/config";
+import type { User } from "@prisma/client";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { Public } from "../auth/decorators/public.decorator";
+import { StripeService } from "./stripe.service";
+import { SubscriptionService, PLAN_PRICING } from "./subscription.service";
+import { CreatePaymentDto } from "./dto";
 
-@ApiTags('Payments')
+@ApiTags("Payments")
 @ApiBearerAuth()
-@Controller('payments')
+@Controller("payments")
 export class PaymentController {
   private readonly logger = new Logger(PaymentController.name);
 
   constructor(
-    private readonly payosService: PayosService,
+    private readonly stripeService: StripeService,
     private readonly subscriptionService: SubscriptionService,
     private readonly config: ConfigService,
   ) {}
 
   // ─── POST /payments/create-link ──────────────────────────────────────────
 
-  @Post('create-link')
-  @ApiOperation({ summary: 'Create a PayOS payment link for a subscription plan' })
-  @ApiCreatedResponse({ description: 'Payment link and subscription record created' })
+  @Post("create-link")
+  @ApiOperation({
+    summary: "Create a Stripe Checkout Session for a subscription plan",
+  })
+  @ApiCreatedResponse({
+    description: "Checkout session URL and subscription record created",
+  })
   async createPaymentLink(
     @CurrentUser() user: User,
     @Body() dto: CreatePaymentDto,
   ) {
-    const orderCode = Date.now();
+    if (!this.stripeService.isAvailable) {
+      throw new ServiceUnavailableException(
+        "Hệ thống thanh toán hiện không khả dụng. Vui lòng thử lại sau.",
+      );
+    }
+
     const amount = PLAN_PRICING[dto.plan];
 
-    const returnUrl =
+    const successUrl =
       dto.returnUrl ??
-      this.config.get<string>('PAYMENT_RETURN_URL') ??
-      'fingenie://payment/success';
+      this.config.get<string>("PAYMENT_RETURN_URL") ??
+      "fingenie://payment/success";
 
     const cancelUrl =
       dto.cancelUrl ??
-      this.config.get<string>('PAYMENT_CANCEL_URL') ??
-      'fingenie://payment/cancel';
+      this.config.get<string>("PAYMENT_CANCEL_URL") ??
+      "fingenie://payment/cancel";
 
+    // Create Stripe Checkout Session
+    const session = await this.stripeService.createCheckoutSession({
+      amount, // VND is already in smallest unit (no cents)
+      currency: "vnd",
+      description: `FinGenie Premium - ${dto.plan}`,
+      successUrl,
+      cancelUrl,
+      metadata: {
+        userId: user.id,
+        plan: dto.plan,
+      },
+    });
+
+    // Create subscription + order in our DB
     const { subscription, paymentOrder } =
       await this.subscriptionService.createSubscriptionWithOrder({
         userId: user.id,
         plan: dto.plan,
-        payosOrderId: orderCode.toString(),
+        stripeSessionId: session.id,
         amount,
       });
 
-    const paymentLink = await this.payosService.createPaymentLink({
-      orderCode,
-      amount,
-      description: `FinGenie ${dto.plan}`,
-      returnUrl,
-      cancelUrl,
-    });
-
-    return { paymentLink, subscription, order: paymentOrder };
+    return {
+      paymentLink: session.url,
+      subscription,
+      order: paymentOrder,
+    };
   }
 
   // ─── POST /payments/webhook ───────────────────────────────────────────────
-  // @Public — PayOS calls this without user auth; always respond 200.
+  // @Public — Stripe calls this without user auth; verify via signature.
 
   @Public()
-  @Post('webhook')
+  @Post("webhook")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'PayOS webhook receiver (public — no auth required)' })
-  @ApiOkResponse({ description: 'Webhook acknowledged' })
-  async handleWebhook(@Body() body: any) {
+  @ApiOperation({
+    summary: "Stripe webhook receiver (public — no auth required)",
+  })
+  @ApiOkResponse({ description: "Webhook acknowledged" })
+  async handleWebhook(
+    @RawBody() rawBody: Buffer,
+    @Headers("stripe-signature") signature: string,
+  ) {
+    // Persist raw event first for auditability
+    let sessionId = "unknown";
     try {
-      // Persist raw event first for auditability / replay
+      const parsed = JSON.parse(rawBody.toString());
+      sessionId =
+        parsed?.data?.object?.id ?? parsed?.data?.object?.session ?? "unknown";
       await this.subscriptionService.recordWebhookEvent({
-        payosOrderId: String(body?.data?.orderCode ?? ''),
-        payload: body,
-        signature: body?.signature ?? '',
+        stripeSessionId: sessionId,
+        payload: parsed,
+        signature: signature ?? "",
       });
+    } catch (recordErr) {
+      this.logger.error("Failed to record webhook event", recordErr);
+    }
 
-      // Verify signature and extract structured data
-      const data = await this.payosService.verifyWebhook(body);
+    // Verify signature
+    let event;
+    try {
+      event = this.stripeService.constructWebhookEvent(rawBody, signature);
+    } catch (verifyErr) {
+      this.logger.error(
+        `Webhook signature verification FAILED for session=${sessionId}`,
+        verifyErr,
+      );
+      return { success: false, error: "Invalid webhook signature" };
+    }
 
-      if (data.code === '00') {
-        await this.subscriptionService.activatePremium(data.orderCode.toString());
-      } else {
-        await this.subscriptionService.handlePaymentFailed(data.orderCode.toString());
+    // Process verified webhook
+    try {
+      if (event.type === "checkout.session.completed") {
+        const session = event.data.object as { id: string };
+        await this.subscriptionService.activatePremium(session.id);
+      } else if (event.type === "checkout.session.expired") {
+        const session = event.data.object as { id: string };
+        await this.subscriptionService.handlePaymentFailed(session.id);
       }
-    } catch (err) {
-      // Log but never throw — webhooks must always return 200 to PayOS
-      this.logger.error('Webhook processing error', err);
+    } catch (processErr) {
+      this.logger.error(
+        `Webhook processing error for event=${event.type}`,
+        processErr,
+      );
     }
 
     return { success: true };
@@ -113,28 +162,46 @@ export class PaymentController {
 
   // ─── GET /payments/status ─────────────────────────────────────────────────
 
-  @Get('status')
-  @ApiOperation({ summary: 'Get current premium status for the authenticated user' })
-  @ApiOkResponse({ description: 'isPremium flag, expiry date, and active subscription' })
+  @Get("status")
+  @ApiOperation({
+    summary: "Get current premium status for the authenticated user",
+  })
+  @ApiOkResponse({
+    description: "isPremium flag, expiry date, and active subscription",
+  })
   async getPremiumStatus(@CurrentUser() user: User) {
     const { isPremium, premiumUntil } =
       await this.subscriptionService.checkPremiumStatus(user.id);
-    const subscription = await this.subscriptionService.getActiveSubscription(user.id);
+    const subscription = await this.subscriptionService.getActiveSubscription(
+      user.id,
+    );
 
     return { isPremium, premiumUntil, subscription };
   }
 
   // ─── GET /payments/history ────────────────────────────────────────────────
 
-  @Get('history')
-  @ApiOperation({ summary: 'Paginated payment history for the authenticated user' })
-  @ApiOkResponse({ description: 'List of payment orders with subscription details' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 20)' })
+  @Get("history")
+  @ApiOperation({
+    summary: "Paginated payment history for the authenticated user",
+  })
+  @ApiOkResponse({
+    description: "List of payment orders with subscription details",
+  })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    description: "Page number (default: 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description: "Items per page (default: 20)",
+  })
   async getPaymentHistory(
     @CurrentUser() user: User,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
     return this.subscriptionService.getPaymentHistory(
       user.id,
@@ -143,13 +210,27 @@ export class PaymentController {
     );
   }
 
-  // ─── POST /payments/:orderCode/cancel ────────────────────────────────────
+  // ─── POST /payments/:sessionId/cancel ────────────────────────────────────
 
-  @Post(':orderCode/cancel')
+  @Post(":sessionId/cancel")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Cancel a pending PayOS payment by orderCode' })
-  @ApiOkResponse({ description: 'Cancellation result from PayOS' })
-  async cancelPayment(@Param('orderCode') orderCode: string) {
-    return this.payosService.cancelPaymentRequest(Number(orderCode));
+  @ApiOperation({ summary: "Cancel a pending payment by Stripe session ID" })
+  @ApiOkResponse({ description: "Cancellation result" })
+  async cancelPayment(
+    @CurrentUser() user: User,
+    @Param("sessionId") sessionId: string,
+  ) {
+    if (!this.stripeService.isAvailable) {
+      throw new ServiceUnavailableException(
+        "Hệ thống thanh toán hiện không khả dụng. Vui lòng thử lại sau.",
+      );
+    }
+    // Verify the order belongs to this user
+    await this.subscriptionService.verifyOrderOwnership(user.id, sessionId);
+    // Expire the Stripe checkout session
+    const session = await this.stripeService.getCheckoutSession(sessionId);
+    // Mark as failed in our DB
+    await this.subscriptionService.handlePaymentFailed(sessionId);
+    return { status: "cancelled", sessionId: session.id };
   }
 }

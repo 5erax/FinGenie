@@ -1,4 +1,4 @@
-export type UserRole = 'user' | 'admin';
+export type UserRole = "user" | "admin";
 
 export interface User {
   id: string;
@@ -6,6 +6,7 @@ export interface User {
   phone: string | null;
   displayName: string;
   avatarUrl: string | null;
+  firebaseUid: string;
   role: UserRole;
   premiumUntil: string | null; // ISO date string
   createdAt: string;

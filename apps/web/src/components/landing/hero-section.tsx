@@ -130,10 +130,26 @@ export function HeroSection() {
           className="flex flex-wrap items-center justify-center gap-4"
           variants={itemVariants}
         >
-          <GradientButton variant="primary" size="lg">
+          <GradientButton
+            variant="primary"
+            size="lg"
+            onClick={() =>
+              document
+                .getElementById("pricing")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
             Bắt Đầu Ngay
           </GradientButton>
-          <GradientButton variant="secondary" size="lg">
+          <GradientButton
+            variant="secondary"
+            size="lg"
+            onClick={() =>
+              document
+                .getElementById("features")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
             Tìm Hiểu Thêm
           </GradientButton>
         </motion.div>

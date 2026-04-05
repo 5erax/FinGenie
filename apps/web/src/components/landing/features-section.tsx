@@ -39,7 +39,7 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section className="panel bg-zinc-950">
+    <section id="features" className="panel bg-zinc-950">
       {/* Emerald glow — top-right */}
       <div
         className="glow-orb animate-pulse-glow pointer-events-none absolute -right-20 -top-40 h-[520px] w-[520px] bg-primary-500/20"

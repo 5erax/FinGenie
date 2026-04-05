@@ -16,6 +16,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://fingenie.vn"),
+  alternates: { canonical: "/" },
   title: "FinGenie — Cuộc Phiêu Lưu Tài Chính Của Bạn",
   description:
     "FinGenie là trợ lý tài chính AI dành riêng cho Gen Z Việt Nam. Theo dõi chi tiêu, lập kế hoạch tiết kiệm và đạt mục tiêu tài chính thông minh hơn.",

@@ -29,13 +29,7 @@ const premiumFeatures: string[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FeatureRow({
-  text,
-  included,
-}: {
-  text: string;
-  included: boolean;
-}) {
+function FeatureRow({ text, included }: { text: string; included: boolean }) {
   return (
     <li className="flex items-center gap-2.5 font-body text-sm">
       <span
@@ -47,7 +41,13 @@ function FeatureRow({
       >
         {included ? "✓" : "✗"}
       </span>
-      <span className={cn(included ? "text-zinc-300" : "text-zinc-600 line-through decoration-zinc-700")}>
+      <span
+        className={cn(
+          included
+            ? "text-zinc-300"
+            : "text-zinc-600 line-through decoration-zinc-700",
+        )}
+      >
         {text}
       </span>
     </li>
@@ -58,7 +58,7 @@ function FeatureRow({
 
 export function PricingSection() {
   return (
-    <section className="panel bg-zinc-950" aria-label="Pricing">
+    <section id="pricing" className="panel bg-zinc-950" aria-label="Pricing">
       {/* Emerald glow — center */}
       <div
         className="glow-orb animate-pulse-glow pointer-events-none absolute left-1/2 top-1/2 h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 bg-primary-500/10"
@@ -72,7 +72,6 @@ export function PricingSection() {
       />
 
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-14 px-6 py-12 lg:px-12">
-
         {/* ── Heading ── */}
         <SectionHeading
           badge="Lựa Chọn"
@@ -83,7 +82,6 @@ export function PricingSection() {
 
         {/* ── Cards ── */}
         <div className="flex w-full flex-col gap-6 md:flex-row md:items-start md:gap-8">
-
           {/* Free Plan */}
           <GlassCard
             variant="default"
@@ -91,14 +89,22 @@ export function PricingSection() {
             initial={{ opacity: 0, y: 44 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+            transition={{
+              duration: 0.65,
+              delay: 0.08,
+              ease: [0.22, 1, 0.36, 1],
+            }}
           >
             {/* Plan heading */}
             <div>
-              <p className="font-display text-xl font-bold text-white">Miễn Phí</p>
+              <p className="font-display text-xl font-bold text-white">
+                Miễn Phí
+              </p>
               <p className="mt-2 font-body">
                 <span className="text-3xl font-black text-zinc-200">0</span>
-                <span className="ml-1 text-base font-normal text-zinc-500">đ/tháng</span>
+                <span className="ml-1 text-base font-normal text-zinc-500">
+                  đ/tháng
+                </span>
               </p>
             </div>
 
@@ -106,7 +112,10 @@ export function PricingSection() {
             <div className="h-px w-full bg-white/6" aria-hidden="true" />
 
             {/* Features */}
-            <ul className="flex flex-col gap-3" aria-label="Tính năng gói miễn phí">
+            <ul
+              className="flex flex-col gap-3"
+              aria-label="Tính năng gói miễn phí"
+            >
               {freeFeatures.map((f) => (
                 <FeatureRow key={f.text} text={f.text} included={f.included} />
               ))}
@@ -128,7 +137,11 @@ export function PricingSection() {
             initial={{ opacity: 0, y: 44 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{
+              duration: 0.65,
+              delay: 0.2,
+              ease: [0.22, 1, 0.36, 1],
+            }}
           >
             {/* "Popular" badge */}
             <motion.span
@@ -136,7 +149,11 @@ export function PricingSection() {
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
+              transition={{
+                duration: 0.4,
+                delay: 0.45,
+                ease: [0.34, 1.56, 0.64, 1],
+              }}
               aria-label="Gói phổ biến nhất"
             >
               Phổ biến nhất
@@ -144,10 +161,16 @@ export function PricingSection() {
 
             {/* Plan heading */}
             <div>
-              <p className="font-display text-xl font-bold text-white">Premium</p>
+              <p className="font-display text-xl font-bold text-white">
+                Premium
+              </p>
               <p className="mt-2 font-body">
-                <span className="text-3xl font-black text-primary-400">79.000</span>
-                <span className="ml-1 text-base font-normal text-zinc-400">đ/tháng</span>
+                <span className="text-3xl font-black text-primary-400">
+                  79.000
+                </span>
+                <span className="ml-1 text-base font-normal text-zinc-400">
+                  đ/tháng
+                </span>
               </p>
             </div>
 
@@ -155,10 +178,19 @@ export function PricingSection() {
             <div className="h-px w-full bg-primary-500/20" aria-hidden="true" />
 
             {/* Features */}
-            <ul className="flex flex-col gap-3" aria-label="Tính năng gói Premium">
+            <ul
+              className="flex flex-col gap-3"
+              aria-label="Tính năng gói Premium"
+            >
               {premiumFeatures.map((f) => (
-                <li key={f} className="flex items-center gap-2.5 font-body text-sm">
-                  <span className="shrink-0 text-base font-bold text-primary-400" aria-hidden="true">
+                <li
+                  key={f}
+                  className="flex items-center gap-2.5 font-body text-sm"
+                >
+                  <span
+                    className="shrink-0 text-base font-bold text-primary-400"
+                    aria-hidden="true"
+                  >
                     ✓
                   </span>
                   <span className="text-zinc-200">{f}</span>

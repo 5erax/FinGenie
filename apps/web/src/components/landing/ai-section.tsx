@@ -231,6 +231,9 @@ export function AiSection() {
                 <SendIcon className="h-3.5 w-3.5" />
               </button>
             </div>
+            <p className="mt-2 text-center font-body text-xs text-zinc-500">
+              Tải app để trải nghiệm AI Coach thực tế
+            </p>
           </div>
         </GlassCard>
       </div>

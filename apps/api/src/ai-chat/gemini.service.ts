@@ -1,10 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   GoogleGenerativeAI,
   type GenerativeModel,
   type Content,
-} from '@google/generative-ai';
+} from "@google/generative-ai";
 
 const SYSTEM_PROMPT = `Bạn là FinGenie AI Coach — trợ lý tài chính cá nhân thông minh cho người Việt trẻ.
 
@@ -36,15 +36,15 @@ export class GeminiService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const apiKey = this.config.get<string>('GEMINI_API_KEY');
+    const apiKey = this.config.get<string>("GEMINI_API_KEY");
     if (!apiKey) {
-      this.logger.warn('GEMINI_API_KEY not set — AI Coach will be unavailable');
+      this.logger.warn("GEMINI_API_KEY not set — AI Coach will be unavailable");
       return;
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
     this.model = genAI.getGenerativeModel({
-      model: this.config.get<string>('GEMINI_MODEL', 'gemini-2.0-flash'),
+      model: this.config.get<string>("GEMINI_MODEL", "gemini-2.5-flash"),
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
         temperature: 0.7,
@@ -53,7 +53,7 @@ export class GeminiService implements OnModuleInit {
       },
     });
 
-    this.logger.log('Gemini AI initialized');
+    this.logger.log("Gemini AI initialized");
   }
 
   get isAvailable(): boolean {
@@ -72,21 +72,23 @@ export class GeminiService implements OnModuleInit {
     financialContext: string,
   ): Promise<string> {
     if (!this.model) {
-      return '⚠️ AI Coach hiện không khả dụng. Vui lòng thử lại sau.';
+      return "⚠️ AI Coach hiện không khả dụng. Vui lòng thử lại sau.";
     }
 
     // Inject financial context as the first user message if provided
     const contextHistory: Content[] = financialContext
       ? [
           {
-            role: 'user',
-            parts: [{ text: `[Dữ liệu tài chính của tôi]\n${financialContext}` }],
+            role: "user",
+            parts: [
+              { text: `[Dữ liệu tài chính của tôi]\n${financialContext}` },
+            ],
           },
           {
-            role: 'model',
+            role: "model",
             parts: [
               {
-                text: 'Tôi đã nhận được thông tin tài chính của bạn. Hãy hỏi tôi bất cứ điều gì! 😊',
+                text: "Tôi đã nhận được thông tin tài chính của bạn. Hãy hỏi tôi bất cứ điều gì! 😊",
               },
             ],
           },
@@ -94,10 +96,32 @@ export class GeminiService implements OnModuleInit {
         ]
       : history;
 
-    const chat = this.model.startChat({ history: contextHistory });
-    const result = await chat.sendMessage(userMessage);
-    const response = result.response;
+    try {
+      const chat = this.model.startChat({ history: contextHistory });
+      const result = await chat.sendMessage(userMessage);
+      const response = result.response;
+      return response.text();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Gemini chat error: ${errMsg}`);
 
-    return response.text();
+      // Provide specific guidance for common errors
+      if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("403")) {
+        this.logger.error(
+          "Gemini API key is invalid or expired. Check GEMINI_API_KEY env.",
+        );
+      } else if (
+        errMsg.includes("RESOURCE_EXHAUSTED") ||
+        errMsg.includes("429")
+      ) {
+        this.logger.error("Gemini rate limit hit. Consider upgrading plan.");
+      } else if (errMsg.includes("NOT_FOUND") || errMsg.includes("404")) {
+        this.logger.error(
+          `Model "${this.config.get<string>("GEMINI_MODEL", "gemini-2.5-flash")}" not found. Check GEMINI_MODEL env.`,
+        );
+      }
+
+      throw error; // Re-throw so ai-chat.service.ts catch block handles user-facing response
+    }
   }
 }

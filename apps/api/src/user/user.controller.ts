@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Query,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -59,6 +67,15 @@ export class UserController {
     };
   }
 
+  @Delete("me")
+  @ApiOperation({ summary: "Delete own account and all associated data" })
+  @ApiOkResponse({ description: "Account deleted" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  async deleteOwnAccount(@CurrentUser() user: User) {
+    await this.userService.deleteSelf(user.id, user.firebaseUid);
+    return { success: true };
+  }
+
   // Admin endpoints
   @Get("admin/stats")
   @Roles(UserRole.admin)
@@ -75,33 +92,42 @@ export class UserController {
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "role", required: false, enum: UserRole })
+  @ApiQuery({ name: "search", required: false })
   @ApiOkResponse({ description: "Paginated user list" })
   @ApiForbiddenResponse({ description: "Admin access required" })
   async listUsers(
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("role") role?: UserRole,
+    @Query("search") search?: string,
   ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const l = limit ? parseInt(limit, 10) : 20;
     const { users, total } = await this.userService.findAll({
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 20,
+      page: p,
+      limit: l,
       role,
+      search,
     });
 
+    const totalPages = Math.ceil(total / l);
+
     return {
-      data: users.map((u) => ({
-        id: u.id,
-        email: u.email,
-        phone: u.phone,
-        displayName: u.displayName,
-        role: u.role,
-        premiumUntil: u.premiumUntil,
-        createdAt: u.createdAt,
-      })),
+      data: users,
       total,
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 20,
+      page: p,
+      limit: l,
+      totalPages,
     };
+  }
+
+  @Get(":id")
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: "Get user by ID (admin only)" })
+  @ApiOkResponse({ description: "User details" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async getUserById(@Param("id") id: string) {
+    return this.userService.findByIdFull(id);
   }
 
   @Patch(":id/role")
@@ -116,5 +142,15 @@ export class UserController {
       displayName: updated.displayName,
       role: updated.role,
     };
+  }
+
+  @Delete(":id")
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: "Delete user (admin only)" })
+  @ApiOkResponse({ description: "User deleted" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async deleteUser(@Param("id") id: string) {
+    await this.userService.deleteUser(id);
+    return { success: true };
   }
 }

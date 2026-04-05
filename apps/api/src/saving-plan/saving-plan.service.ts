@@ -1,9 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma, SafeMoneyMode, TransactionType } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import type { CreateSavingPlanDto } from './dto/create-saving-plan.dto';
-import type { UpdateSavingPlanDto } from './dto/update-saving-plan.dto';
-import type { UpsertSafeMoneyDto } from './dto/upsert-safe-money.dto';
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Prisma, SafeMoneyMode, TransactionType } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import type { CreateSavingPlanDto } from "./dto/create-saving-plan.dto";
+import type { UpdateSavingPlanDto } from "./dto/update-saving-plan.dto";
+import type { UpsertSafeMoneyDto } from "./dto/upsert-safe-money.dto";
 
 @Injectable()
 export class SavingPlanService {
@@ -17,7 +17,7 @@ export class SavingPlanService {
     return this.prisma.savingPlan.findFirst({
       where: { userId },
       include: { safeMoneyConfig: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -25,7 +25,7 @@ export class SavingPlanService {
     return this.prisma.savingPlan.findMany({
       where: { userId },
       include: { safeMoneyConfig: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -35,7 +35,7 @@ export class SavingPlanService {
       include: { safeMoneyConfig: true },
     });
 
-    if (!plan) throw new NotFoundException('Saving plan not found');
+    if (!plan) throw new NotFoundException("Saving plan not found");
     return plan;
   }
 
@@ -69,7 +69,8 @@ export class SavingPlanService {
 
     const monthlyIncome = dto.monthlyIncome ?? Number(plan.monthlyIncome);
     const fixedExpenses = dto.fixedExpenses ?? Number(plan.fixedExpenses);
-    const variableExpenses = dto.variableExpenses ?? Number(plan.variableExpenses);
+    const variableExpenses =
+      dto.variableExpenses ?? Number(plan.variableExpenses);
     const savingPercent = dto.savingPercent ?? plan.savingPercent;
 
     const { dailyBudget, safeMoney } = this.calculatePlan(
@@ -91,7 +92,9 @@ export class SavingPlanService {
         ...(dto.variableExpenses !== undefined && {
           variableExpenses: new Prisma.Decimal(dto.variableExpenses),
         }),
-        ...(dto.savingPercent !== undefined && { savingPercent: dto.savingPercent }),
+        ...(dto.savingPercent !== undefined && {
+          savingPercent: dto.savingPercent,
+        }),
         dailyBudget,
         safeMoney,
       },
@@ -109,7 +112,11 @@ export class SavingPlanService {
     this.logger.log(`SavingPlan deleted: ${id} (user: ${userId})`);
   }
 
-  async upsertSafeMoneyConfig(userId: string, planId: string, dto: UpsertSafeMoneyDto) {
+  async upsertSafeMoneyConfig(
+    userId: string,
+    planId: string,
+    dto: UpsertSafeMoneyDto,
+  ) {
     const plan = await this.findById(userId, planId);
 
     const sensitivity = dto.sensitivity ?? 50;
@@ -118,7 +125,11 @@ export class SavingPlanService {
     if (dto.threshold !== undefined) {
       threshold = new Prisma.Decimal(dto.threshold);
     } else {
-      threshold = this.calculateThreshold(plan.dailyBudget, dto.mode, sensitivity);
+      threshold = this.calculateThreshold(
+        plan.dailyBudget,
+        dto.mode,
+        sensitivity,
+      );
     }
 
     const config = await this.prisma.safeMoneyConfig.upsert({
@@ -136,7 +147,9 @@ export class SavingPlanService {
       },
     });
 
-    this.logger.log(`SafeMoneyConfig upserted for plan: ${planId} (user: ${userId})`);
+    this.logger.log(
+      `SafeMoneyConfig upserted for plan: ${planId} (user: ${userId})`,
+    );
     return config;
   }
 
@@ -144,8 +157,16 @@ export class SavingPlanService {
     const plan = await this.findById(userId, planId);
 
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const endOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
 
     const aggregate = await this.prisma.transaction.aggregate({
       where: {
@@ -156,30 +177,25 @@ export class SavingPlanService {
       _sum: { amount: true },
     });
 
-    const todaySpending = aggregate._sum.amount ?? new Prisma.Decimal(0);
+    const todaySpent = aggregate._sum.amount ?? new Prisma.Decimal(0);
     const dailyBudget = plan.dailyBudget;
-    const overBudget = todaySpending.greaterThan(dailyBudget);
+    const remaining = dailyBudget.sub(todaySpent);
+    const safeMoney = plan.safeMoney;
+    const isOverBudget = todaySpent.greaterThan(dailyBudget);
 
-    const result: {
-      todaySpending: Prisma.Decimal;
-      dailyBudget: Prisma.Decimal;
-      overBudget: boolean;
-      threshold: Prisma.Decimal | null;
-      overThreshold: boolean;
-    } = {
-      todaySpending,
-      dailyBudget,
-      overBudget,
-      threshold: null,
-      overThreshold: false,
-    };
-
+    let isNearThreshold = false;
     if (plan.safeMoneyConfig) {
-      result.threshold = plan.safeMoneyConfig.threshold;
-      result.overThreshold = todaySpending.greaterThan(plan.safeMoneyConfig.threshold);
+      isNearThreshold = todaySpent.greaterThan(plan.safeMoneyConfig.threshold);
     }
 
-    return result;
+    return {
+      todaySpent,
+      dailyBudget,
+      remaining,
+      safeMoney,
+      isOverBudget,
+      isNearThreshold,
+    };
   }
 
   // ─── Private Helpers ────────────────────────────────────────────────────────
@@ -191,7 +207,11 @@ export class SavingPlanService {
     savingPercent: number,
   ): { dailyBudget: Prisma.Decimal; safeMoney: Prisma.Decimal } {
     const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+    ).getDate();
     const daysInMonthD = new Prisma.Decimal(daysInMonth);
 
     const inc = new Prisma.Decimal(monthlyIncome);
@@ -229,6 +249,8 @@ export class SavingPlanService {
     }
 
     // Advanced mode: dailyBudget × (sensitivity / 10)
-    return dailyBudget.times(new Prisma.Decimal(sensitivity).dividedBy(new Prisma.Decimal(10)));
+    return dailyBudget.times(
+      new Prisma.Decimal(sensitivity).dividedBy(new Prisma.Decimal(10)),
+    );
   }
 }

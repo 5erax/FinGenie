@@ -1,6 +1,6 @@
-export type SubscriptionPlan = 'free' | 'monthly' | 'yearly';
-export type SubscriptionStatus = 'active' | 'cancelled' | 'expired';
-export type PaymentStatus = 'pending' | 'success' | 'failed' | 'cancelled';
+export type SubscriptionPlan = "free" | "monthly" | "yearly";
+export type SubscriptionStatus = "active" | "cancelled" | "expired";
+export type PaymentStatus = "pending" | "success" | "failed" | "cancelled";
 
 export interface Subscription {
   id: string;
@@ -17,9 +17,10 @@ export interface PaymentOrder {
   id: string;
   userId: string;
   subscriptionId: string;
-  payosOrderId: string;
+  stripeSessionId: string;
   amount: number;
   status: PaymentStatus;
   createdAt: string;
   updatedAt: string;
+  subscription?: Subscription;
 }

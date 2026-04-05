@@ -3,16 +3,17 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import type { Content } from '@google/generative-ai';
-import { MessageRole } from '@prisma/client';
-import type { User } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { GeminiService } from './gemini.service';
-import { TransactionService } from '../transaction/transaction.service';
-import { SavingPlanService } from '../saving-plan/saving-plan.service';
-import { WalletService } from '../wallet/wallet.service';
-import type { CreateSessionDto, SendMessageDto, QuerySessionsDto } from './dto';
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import type { Content } from "@google/generative-ai";
+import { MessageRole } from "@prisma/client";
+import type { User } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { GeminiService } from "./gemini.service";
+import { TransactionService } from "../transaction/transaction.service";
+import { SavingPlanService } from "../saving-plan/saving-plan.service";
+import { WalletService } from "../wallet/wallet.service";
+import type { CreateSessionDto, SendMessageDto, QuerySessionsDto } from "./dto";
 
 const FREE_DAILY_LIMIT = 5;
 
@@ -38,9 +39,17 @@ export class AiChatService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.aIChatSession.findMany({
         where: { userId },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { updatedAt: "desc" },
         skip,
         take: limit,
+        include: {
+          _count: { select: { messages: true } },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            select: { content: true, createdAt: true },
+          },
+        },
       }),
       this.prisma.aIChatSession.count({ where: { userId } }),
     ]);
@@ -52,11 +61,11 @@ export class AiChatService {
     const session = await this.prisma.aIChatSession.findFirst({
       where: { id: sessionId, userId },
       include: {
-        messages: { orderBy: { createdAt: 'asc' } },
+        messages: { orderBy: { createdAt: "asc" } },
       },
     });
 
-    if (!session) throw new NotFoundException('Chat session not found');
+    if (!session) throw new NotFoundException("Chat session not found");
     return session;
   }
 
@@ -64,7 +73,7 @@ export class AiChatService {
     const session = await this.prisma.aIChatSession.create({
       data: {
         userId,
-        title: dto.title ?? 'Cuộc trò chuyện mới',
+        title: dto.title ?? "Cuộc trò chuyện mới",
       },
     });
 
@@ -77,7 +86,7 @@ export class AiChatService {
       where: { id: sessionId, userId },
     });
 
-    if (!session) throw new NotFoundException('Chat session not found');
+    if (!session) throw new NotFoundException("Chat session not found");
 
     await this.prisma.aIChatSession.delete({ where: { id: sessionId } });
     this.logger.log(`Session deleted: ${sessionId} (user: ${userId})`);
@@ -86,7 +95,7 @@ export class AiChatService {
   // ─── Send Message ────────────────────────────────────────────────────────────
 
   async sendMessage(user: User, sessionId: string, dto: SendMessageDto) {
-    // 1. Rate limit check
+    // 1. Rate limit check — query fresh premium status from DB
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -98,12 +107,11 @@ export class AiChatService {
       },
     });
 
-    const isPremium =
-      user.premiumUntil && new Date(user.premiumUntil) > new Date();
+    const isPremium = await this.checkFreshPremiumStatus(user.id);
 
     if (!isPremium && todayMessageCount >= FREE_DAILY_LIMIT) {
       throw new ForbiddenException(
-        'Bạn đã hết lượt tin nhắn miễn phí hôm nay. Nâng cấp Premium để chat không giới hạn! 🌟',
+        "Bạn đã hết lượt tin nhắn miễn phí hôm nay. Nâng cấp Premium để chat không giới hạn! 🌟",
       );
     }
 
@@ -126,16 +134,31 @@ export class AiChatService {
     const history: Content[] = session.messages
       .filter((m) => m.role !== MessageRole.system)
       .map((m) => ({
-        role: m.role === MessageRole.assistant ? 'model' : 'user',
+        role: m.role === MessageRole.assistant ? "model" : "user",
         parts: [{ text: m.content }],
       }));
 
-    // 6. Call Gemini
-    const aiResponse = await this.geminiService.chat(
-      history,
-      dto.content,
-      financialContext,
-    );
+    // 6. Call Gemini (with availability check and error handling)
+    if (!this.geminiService.isAvailable) {
+      throw new ServiceUnavailableException(
+        "AI Coach hiện không khả dụng. Vui lòng thử lại sau.",
+      );
+    }
+
+    let aiResponse: string;
+    try {
+      aiResponse = await this.geminiService.chat(
+        history,
+        dto.content,
+        financialContext,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Gemini API error in session ${sessionId}: ${String(error)}`,
+      );
+      aiResponse =
+        "⚠️ AI Coach tạm thời gặp sự cố. Vui lòng thử lại sau ít phút.";
+    }
 
     // 7. Save assistant message
     const assistantMessage = await this.prisma.aIMessage.create({
@@ -152,9 +175,7 @@ export class AiChatService {
       data: { updatedAt: new Date() },
     });
 
-    this.logger.log(
-      `Message sent in session ${sessionId} (user: ${user.id})`,
-    );
+    this.logger.log(`Message sent in session ${sessionId} (user: ${user.id})`);
 
     return { userMessage, assistantMessage };
   }
@@ -162,9 +183,7 @@ export class AiChatService {
   // ─── Status ──────────────────────────────────────────────────────────────────
 
   async getStatus(user: User) {
-    const isPremium = !!(
-      user.premiumUntil && new Date(user.premiumUntil) > new Date()
-    );
+    const isPremium = await this.checkFreshPremiumStatus(user.id);
     const todayMessages = await this.getTodayMessageCount(user.id);
 
     return {
@@ -172,10 +191,26 @@ export class AiChatService {
       todayMessages,
       dailyLimit: isPremium ? null : FREE_DAILY_LIMIT,
       isPremium,
+      unavailableReason: this.geminiService.isAvailable
+        ? undefined
+        : "GEMINI_API_KEY chưa được cấu hình. Liên hệ admin để kích hoạt AI Coach.",
     };
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Query fresh premium status directly from DB to avoid stale cached user object.
+   */
+  private async checkFreshPremiumStatus(userId: string): Promise<boolean> {
+    const freshUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { premiumUntil: true },
+    });
+    return !!(
+      freshUser?.premiumUntil && new Date(freshUser.premiumUntil) > new Date()
+    );
+  }
 
   async getTodayMessageCount(userId: string): Promise<number> {
     const startOfDay = new Date();
@@ -207,9 +242,9 @@ export class AiChatService {
       const lines: string[] = [];
 
       // Wallets
-      lines.push('## Ví của tôi:');
+      lines.push("## Ví của tôi:");
       if (wallets.length === 0) {
-        lines.push('- Chưa có ví nào');
+        lines.push("- Chưa có ví nào");
       } else {
         for (const w of wallets) {
           lines.push(
@@ -219,7 +254,7 @@ export class AiChatService {
       }
 
       // Transaction summary for current month
-      lines.push('\n## Giao dịch tháng này:');
+      lines.push("\n## Giao dịch tháng này:");
       lines.push(`- Thu nhập: ${summary.totalIncome.toString()} VND`);
       lines.push(`- Chi tiêu: ${summary.totalExpense.toString()} VND`);
       lines.push(`- Còn lại (net): ${summary.net.toString()} VND`);
@@ -227,13 +262,11 @@ export class AiChatService {
 
       // Saving plan
       if (savingPlan) {
-        lines.push('\n## Kế hoạch tiết kiệm:');
+        lines.push("\n## Kế hoạch tiết kiệm:");
         lines.push(
           `- Thu nhập hàng tháng: ${savingPlan.monthlyIncome.toString()} VND`,
         );
-        lines.push(
-          `- Chi cố định: ${savingPlan.fixedExpenses.toString()} VND`,
-        );
+        lines.push(`- Chi cố định: ${savingPlan.fixedExpenses.toString()} VND`);
         lines.push(
           `- Chi biến động: ${savingPlan.variableExpenses.toString()} VND`,
         );
@@ -241,19 +274,17 @@ export class AiChatService {
         lines.push(
           `- Ngân sách hàng ngày: ${savingPlan.dailyBudget.toString()} VND`,
         );
-        lines.push(
-          `- Tiền an toàn: ${savingPlan.safeMoney.toString()} VND`,
-        );
+        lines.push(`- Tiền an toàn: ${savingPlan.safeMoney.toString()} VND`);
       } else {
-        lines.push('\n## Kế hoạch tiết kiệm: Chưa thiết lập');
+        lines.push("\n## Kế hoạch tiết kiệm: Chưa thiết lập");
       }
 
-      return lines.join('\n');
+      return lines.join("\n");
     } catch (error) {
       this.logger.warn(
         `Failed to build financial context for user ${userId}: ${String(error)}`,
       );
-      return '';
+      return "";
     }
   }
 }

@@ -1,19 +1,26 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import { Prisma, TransactionType } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import type { CreateTransactionDto } from './dto/create-transaction.dto';
-import type { UpdateTransactionDto } from './dto/update-transaction.dto';
-import type { QueryTransactionsDto } from './dto/query-transactions.dto';
+} from "@nestjs/common";
+import { Prisma, TransactionType, AlertType } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { AlertService } from "../alert/alert.service";
+import { SavingPlanService } from "../saving-plan/saving-plan.service";
+import type { CreateTransactionDto } from "./dto/create-transaction.dto";
+import type { UpdateTransactionDto } from "./dto/update-transaction.dto";
+import type { QueryTransactionsDto } from "./dto/query-transactions.dto";
 
 @Injectable()
 export class TransactionService {
   private readonly logger = new Logger(TransactionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly alertService: AlertService,
+    private readonly savingPlanService: SavingPlanService,
+  ) {}
 
   async findAllByUser(userId: string, query: QueryTransactionsDto) {
     const page = query.page ?? 1;
@@ -26,7 +33,7 @@ export class TransactionService {
       const wallet = await this.prisma.wallet.findFirst({
         where: { id: query.walletId, userId },
       });
-      if (!wallet) throw new NotFoundException('Wallet not found');
+      if (!wallet) throw new NotFoundException("Wallet not found");
       where.walletId = query.walletId;
     }
 
@@ -44,7 +51,7 @@ export class TransactionService {
       this.prisma.transaction.findMany({
         where,
         include: { wallet: true, category: true },
-        orderBy: { date: 'desc' },
+        orderBy: { date: "desc" },
         skip,
         take: limit,
       }),
@@ -60,7 +67,7 @@ export class TransactionService {
       include: { wallet: true, category: true },
     });
 
-    if (!transaction) throw new NotFoundException('Transaction not found');
+    if (!transaction) throw new NotFoundException("Transaction not found");
     return transaction;
   }
 
@@ -68,7 +75,7 @@ export class TransactionService {
     const wallet = await this.prisma.wallet.findFirst({
       where: { id: dto.walletId, userId },
     });
-    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException("Wallet not found");
 
     const category = await this.prisma.category.findFirst({
       where: {
@@ -76,7 +83,7 @@ export class TransactionService {
         OR: [{ userId }, { isDefault: true }],
       },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category) throw new NotFoundException("Category not found");
 
     const amount = new Prisma.Decimal(dto.amount);
 
@@ -99,6 +106,12 @@ export class TransactionService {
           ? wallet.balance.add(amount)
           : wallet.balance.sub(amount);
 
+      if (newBalance.lessThan(0)) {
+        throw new BadRequestException(
+          "Số dư ví không đủ để thực hiện giao dịch này.",
+        );
+      }
+
       await tx.wallet.update({
         where: { id: dto.walletId },
         data: { balance: newBalance },
@@ -108,6 +121,14 @@ export class TransactionService {
     });
 
     this.logger.log(`Transaction created: ${transaction.id} (user: ${userId})`);
+
+    // Check spending and create alerts if needed (only for expenses)
+    if (dto.type === TransactionType.expense) {
+      this.checkAndCreateAlerts(userId).catch((err) =>
+        this.logger.error(`Alert check failed: ${String(err)}`),
+      );
+    }
+
     return transaction;
   }
 
@@ -140,11 +161,13 @@ export class TransactionService {
     const wallet = await this.prisma.wallet.findFirst({
       where: { id: existing.walletId },
     });
-    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException("Wallet not found");
 
     const oldAmount = existing.amount;
     const newAmount =
-      dto.amount !== undefined ? new Prisma.Decimal(dto.amount) : existing.amount;
+      dto.amount !== undefined
+        ? new Prisma.Decimal(dto.amount)
+        : existing.amount;
     const newType = dto.type ?? existing.type;
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -159,6 +182,12 @@ export class TransactionService {
         newType === TransactionType.income
           ? newBalance.add(newAmount)
           : newBalance.sub(newAmount);
+
+      if (newBalance.lessThan(0)) {
+        throw new BadRequestException(
+          "Số dư ví không đủ để thực hiện thay đổi này.",
+        );
+      }
 
       await tx.wallet.update({
         where: { id: existing.walletId },
@@ -182,7 +211,7 @@ export class TransactionService {
     const wallet = await this.prisma.wallet.findFirst({
       where: { id: existing.walletId },
     });
-    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException("Wallet not found");
 
     const amount = existing.amount;
 
@@ -203,6 +232,61 @@ export class TransactionService {
     this.logger.log(`Transaction deleted: ${id} (user: ${userId})`);
   }
 
+  // ─── Alert Integration ──────────────────────────────────────────────────────
+
+  private async checkAndCreateAlerts(userId: string): Promise<void> {
+    const plan = await this.savingPlanService.findByUser(userId);
+    if (!plan) return; // No saving plan — nothing to check
+
+    const check = await this.savingPlanService.checkSpendingAlert(
+      userId,
+      plan.id,
+    );
+
+    if (check.isOverBudget) {
+      // Prevent duplicate alerts: check if we already alerted today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const existing = await this.prisma.alertEvent.findFirst({
+        where: {
+          userId,
+          type: AlertType.overspend,
+          createdAt: { gte: today },
+        },
+      });
+
+      if (!existing) {
+        await this.alertService.create({
+          userId,
+          type: AlertType.overspend,
+          message: `Bạn đã chi ${check.todaySpent.toNumber().toLocaleString("vi-VN")}đ hôm nay, vượt ngân sách ${check.dailyBudget.toNumber().toLocaleString("vi-VN")}đ/ngày.`,
+        });
+      }
+    }
+
+    if (check.isNearThreshold && !check.isOverBudget) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const existing = await this.prisma.alertEvent.findFirst({
+        where: {
+          userId,
+          type: AlertType.budget_warning,
+          createdAt: { gte: today },
+        },
+      });
+
+      if (!existing) {
+        await this.alertService.create({
+          userId,
+          type: AlertType.budget_warning,
+          message: `Chi tiêu hôm nay đã gần ngưỡng cảnh báo. Hãy cân nhắc trước khi chi thêm.`,
+        });
+      }
+    }
+  }
+
   async getSummary(
     userId: string,
     query: { walletId?: string; startDate?: string; endDate?: string },
@@ -213,7 +297,7 @@ export class TransactionService {
       const wallet = await this.prisma.wallet.findFirst({
         where: { id: query.walletId, userId },
       });
-      if (!wallet) throw new NotFoundException('Wallet not found');
+      if (!wallet) throw new NotFoundException("Wallet not found");
       where.walletId = query.walletId;
     }
 
@@ -225,7 +309,7 @@ export class TransactionService {
     }
 
     const groups = await this.prisma.transaction.groupBy({
-      by: ['type'],
+      by: ["type"],
       where,
       _sum: { amount: true },
       _count: { _all: true },

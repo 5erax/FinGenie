@@ -2,13 +2,13 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCGqIOvnpw3CPpQfhz6UDVn3SzCxy8y2tM",
-  authDomain: "fingenie-60788.firebaseapp.com",
-  projectId: "fingenie-60788",
-  storageBucket: "fingenie-60788.firebasestorage.app",
-  messagingSenderId: "138677191377",
-  appId: "1:138677191377:web:fa22c5d3fab08312cffbf0",
-  measurementId: "G-RY2QZ1EV9P",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase (singleton pattern for Next.js HMR)

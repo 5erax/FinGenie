@@ -3,6 +3,8 @@ import { Logger, ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { DecimalInterceptor } from "./common/decimal.interceptor";
+import { GlobalExceptionFilter } from "./common/http-exception.filter";
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger("NestApplication");
@@ -14,11 +16,24 @@ async function bootstrap(): Promise<void> {
   // Security middleware
   app.use(helmet());
 
-  // TODO: configure CORS origins
-  app.enableCors();
+  // CORS configuration
+  const isProduction = process.env.NODE_ENV === "production";
+  app.enableCors({
+    origin: isProduction
+      ? process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+        : ["http://localhost:3000"]
+      : true, // Allow all origins in development (Expo web, LAN devices, etc.)
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  });
 
   // Global prefix for all routes
   app.setGlobalPrefix("api/v1");
+
+  // Global interceptor – convert Prisma Decimal → number before JSON serialization
+  app.useGlobalInterceptors(new DecimalInterceptor());
 
   // Global validation pipe – strips unknown props and auto-transforms payloads
   app.useGlobalPipes(
@@ -28,6 +43,9 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+
+  // Global exception filter – normalises all errors to a consistent JSON shape
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Swagger / OpenAPI setup
   const swaggerConfig = new DocumentBuilder()
@@ -55,7 +73,8 @@ async function bootstrap(): Promise<void> {
   );
 
   const port = process.env.PORT ?? 4000;
-  await app.listen(port);
+  // Listen on all interfaces so LAN devices (Expo on physical phone) can reach the API
+  await app.listen(port, "0.0.0.0");
 
   logger.log(`🚀 Application running on http://localhost:${port}`);
   logger.log(`📚 Swagger docs available at http://localhost:${port}/docs`);

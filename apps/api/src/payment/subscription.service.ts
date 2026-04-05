@@ -1,13 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
 
-export const PLAN_PRICING: Record<'monthly' | 'yearly', number> = {
+export const PLAN_PRICING: Record<"monthly" | "yearly", number> = {
   monthly: 79_000,
   yearly: 790_000,
 };
 
-const PLAN_DAYS: Record<'monthly' | 'yearly', number> = {
+const PLAN_DAYS: Record<"monthly" | "yearly", number> = {
   monthly: 30,
   yearly: 365,
 };
@@ -24,10 +24,10 @@ export class SubscriptionService {
    */
   async getActiveSubscription(userId: string) {
     return this.prisma.subscription.findFirst({
-      where: { userId, status: 'active' },
+      where: { userId, status: "active" },
       include: {
         paymentOrders: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take: 5,
         },
       },
@@ -40,11 +40,11 @@ export class SubscriptionService {
    */
   async createSubscriptionWithOrder(params: {
     userId: string;
-    plan: 'monthly' | 'yearly';
-    payosOrderId: string;
+    plan: "monthly" | "yearly";
+    stripeSessionId: string;
     amount: number;
   }) {
-    const { userId, plan, payosOrderId, amount } = params;
+    const { userId, plan, stripeSessionId, amount } = params;
     const days = PLAN_DAYS[plan];
     const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
@@ -53,7 +53,7 @@ export class SubscriptionService {
         data: {
           userId,
           plan,
-          status: 'active',
+          status: "active",
           startDate: new Date(),
           endDate,
         },
@@ -63,9 +63,9 @@ export class SubscriptionService {
         data: {
           userId,
           subscriptionId: subscription.id,
-          payosOrderId,
+          stripeSessionId,
           amount: new Prisma.Decimal(amount),
-          status: 'pending',
+          status: "pending",
         },
       });
 
@@ -82,21 +82,21 @@ export class SubscriptionService {
    * Mark a payment as successful and grant premium access to the user.
    * Idempotent — safe to call multiple times for the same order.
    */
-  async activatePremium(payosOrderId: string) {
+  async activatePremium(stripeSessionId: string) {
     const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.paymentOrder.findFirst({
-        where: { payosOrderId },
+        where: { stripeSessionId },
         include: { subscription: true },
       });
 
       if (!order) {
         throw new NotFoundException(
-          `PaymentOrder not found for payosOrderId: ${payosOrderId}`,
+          `PaymentOrder not found for stripeSessionId: ${stripeSessionId}`,
         );
       }
 
       // Idempotency guard — already processed successfully
-      if (order.status === 'success') {
+      if (order.status === "success") {
         this.logger.log(
           `activatePremium called on already-succeeded order: ${order.id}`,
         );
@@ -105,7 +105,7 @@ export class SubscriptionService {
 
       const updatedOrder = await tx.paymentOrder.update({
         where: { id: order.id },
-        data: { status: 'success' },
+        data: { status: "success" },
         include: { subscription: true },
       });
 
@@ -126,14 +126,14 @@ export class SubscriptionService {
   /**
    * Mark a payment order as failed and cancel the associated subscription.
    */
-  async handlePaymentFailed(payosOrderId: string) {
+  async handlePaymentFailed(stripeSessionId: string) {
     const order = await this.prisma.paymentOrder.findFirst({
-      where: { payosOrderId },
+      where: { stripeSessionId },
     });
 
     if (!order) {
       this.logger.warn(
-        `handlePaymentFailed: no order found for payosOrderId ${payosOrderId}`,
+        `handlePaymentFailed: no order found for stripeSessionId ${stripeSessionId}`,
       );
       return null;
     }
@@ -141,11 +141,11 @@ export class SubscriptionService {
     const [updatedOrder] = await this.prisma.$transaction([
       this.prisma.paymentOrder.update({
         where: { id: order.id },
-        data: { status: 'failed' },
+        data: { status: "failed" },
       }),
       this.prisma.subscription.update({
         where: { id: order.subscriptionId },
-        data: { status: 'cancelled' },
+        data: { status: "cancelled" },
       }),
     ]);
 
@@ -165,7 +165,7 @@ export class SubscriptionService {
       this.prisma.paymentOrder.findMany({
         where: { userId },
         include: { subscription: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip,
         take: limit,
       }),
@@ -186,10 +186,10 @@ export class SubscriptionService {
     await this.prisma.subscription.updateMany({
       where: {
         userId,
-        status: 'active',
+        status: "active",
         endDate: { lt: now },
       },
-      data: { status: 'expired' },
+      data: { status: "expired" },
     });
 
     const user = await this.prisma.user.findUnique({
@@ -206,22 +206,42 @@ export class SubscriptionService {
   }
 
   /**
+   * Verify that a payment order belongs to the given user.
+   * Throws NotFoundException if the order doesn't exist or belongs to someone else.
+   */
+  async verifyOrderOwnership(
+    userId: string,
+    stripeSessionId: string,
+  ): Promise<void> {
+    const order = await this.prisma.paymentOrder.findFirst({
+      where: { stripeSessionId, subscription: { userId } },
+    });
+    if (!order) {
+      throw new NotFoundException(
+        "Payment order not found or does not belong to you",
+      );
+    }
+  }
+
+  /**
    * Persist a raw webhook event payload for auditing / replay.
    */
   async recordWebhookEvent(params: {
-    payosOrderId: string;
-    payload: any;
+    stripeSessionId: string;
+    payload: unknown;
     signature: string;
   }) {
     const event = await this.prisma.paymentWebhookEvent.create({
       data: {
-        payosOrderId: params.payosOrderId,
-        payload: params.payload,
+        stripeSessionId: params.stripeSessionId,
+        payload: params.payload as Prisma.InputJsonValue,
         signature: params.signature,
       },
     });
 
-    this.logger.log(`Webhook event recorded: ${event.id} (order: ${params.payosOrderId})`);
+    this.logger.log(
+      `Webhook event recorded: ${event.id} (session: ${params.stripeSessionId})`,
+    );
     return event;
   }
 }

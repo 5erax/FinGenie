@@ -3,11 +3,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import type { Wallet } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import type { CreateWalletDto } from './dto/create-wallet.dto';
-import type { UpdateWalletDto } from './dto/update-wallet.dto';
+} from "@nestjs/common";
+import type { Wallet } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import type { CreateWalletDto } from "./dto/create-wallet.dto";
+import type { UpdateWalletDto } from "./dto/update-wallet.dto";
 
 @Injectable()
 export class WalletService {
@@ -19,7 +19,7 @@ export class WalletService {
     return this.prisma.wallet.findMany({
       where: { userId },
       include: { _count: { select: { transactions: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -28,7 +28,7 @@ export class WalletService {
       where: { id, userId },
     });
 
-    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException("Wallet not found");
     return wallet;
   }
 
@@ -38,6 +38,7 @@ export class WalletService {
         userId,
         name: dto.name,
         type: dto.type,
+        balance: dto.balance ?? 0,
         currency: dto.currency,
       },
     });
@@ -46,7 +47,11 @@ export class WalletService {
     return wallet;
   }
 
-  async update(userId: string, id: string, dto: UpdateWalletDto): Promise<Wallet> {
+  async update(
+    userId: string,
+    id: string,
+    dto: UpdateWalletDto,
+  ): Promise<Wallet> {
     await this.findById(userId, id);
 
     const wallet = await this.prisma.wallet.update({
@@ -66,7 +71,9 @@ export class WalletService {
     });
 
     if (transactionCount > 0) {
-      throw new BadRequestException('Cannot delete wallet with existing transactions');
+      throw new BadRequestException(
+        "Cannot delete wallet with existing transactions",
+      );
     }
 
     await this.prisma.wallet.delete({ where: { id } });

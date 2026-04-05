@@ -7,9 +7,9 @@ import { GradientButton } from "@/components/ui/gradient-button";
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const footerLinks = [
-  { label: "Điều khoản", href: "#" },
-  { label: "Bảo mật", href: "#" },
-  { label: "Liên hệ", href: "#" },
+  { label: "Tính năng", href: "#features" },
+  { label: "Bảng giá", href: "#pricing" },
+  { label: "Liên hệ", href: "mailto:support@fingenie.vn" },
 ] as const;
 
 // ─── Motion variants ──────────────────────────────────────────────────────────
