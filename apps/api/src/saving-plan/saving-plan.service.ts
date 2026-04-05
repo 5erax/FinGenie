@@ -1,6 +1,12 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { Prisma, SafeMoneyMode, TransactionType } from "@prisma/client";
+import {
+  Prisma,
+  SafeMoneyMode,
+  TaskCategory,
+  TransactionType,
+} from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { GamificationService } from "../gamification/gamification.service";
 import type { CreateSavingPlanDto } from "./dto/create-saving-plan.dto";
 import type { UpdateSavingPlanDto } from "./dto/update-saving-plan.dto";
 import type { UpsertSafeMoneyDto } from "./dto/upsert-safe-money.dto";
@@ -9,7 +15,10 @@ import type { UpsertSafeMoneyDto } from "./dto/upsert-safe-money.dto";
 export class SavingPlanService {
   private readonly logger = new Logger(SavingPlanService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gamificationService: GamificationService,
+  ) {}
 
   // ─── Public Methods ─────────────────────────────────────────────────────────
 
@@ -61,6 +70,14 @@ export class SavingPlanService {
     });
 
     this.logger.log(`SavingPlan created: ${plan.id} (user: ${userId})`);
+
+    // Auto-progress daily quest: "Thiết lập mục tiêu tiết kiệm" (saving)
+    this.gamificationService
+      .progressTask(userId, TaskCategory.saving, 1)
+      .catch((err) =>
+        this.logger.error(`Quest progress (saving) failed: ${String(err)}`),
+      );
+
     return plan;
   }
 

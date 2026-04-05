@@ -25,8 +25,15 @@ const SYSTEM_PROMPT = `Bạn là FinGenie AI Coach — trợ lý tài chính cá
 ## Phong cách
 - Thân thiện, dễ hiểu, phù hợp Gen Z Việt Nam
 - Sử dụng emoji phù hợp (không quá nhiều)
-- Chia nhỏ thông tin thành bullet points khi cần
-- Dùng ví dụ cụ thể bằng VND`;
+- Dùng ví dụ cụ thể bằng VND
+
+## Định dạng trả lời (QUAN TRỌNG)
+- KHÔNG sử dụng markdown (không dùng **, ##, *, \`\`\`, hay bất kỳ cú pháp markdown nào)
+- Dùng dấu gạch đầu dòng "•" thay vì "-" hoặc "*" khi liệt kê
+- Dùng số thứ tự "1. 2. 3." khi cần đánh số
+- Xuống dòng rõ ràng giữa các phần
+- Giữ câu trả lời ngắn gọn, đủ ý (tối đa 300 từ)
+- Viết dạng plain text thuần, dễ đọc trên màn hình điện thoại`;
 
 @Injectable()
 export class GeminiService implements OnModuleInit {
@@ -49,7 +56,7 @@ export class GeminiService implements OnModuleInit {
       generationConfig: {
         temperature: 0.7,
         topP: 0.9,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 4096,
       },
     });
 

@@ -1,20 +1,21 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
-// Validate required environment variables
-const requiredEnvVars = [
-  "NEXT_PUBLIC_FIREBASE_API_KEY",
-  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-] as const;
-
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    throw new Error(
-      `Missing required environment variable: ${envVar}. ` +
-        "Check your .env.local file.",
-    );
-  }
+// Validate required environment variables (must use static references for Turbopack)
+if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+  throw new Error(
+    "Missing required environment variable: NEXT_PUBLIC_FIREBASE_API_KEY. Check your .env.local file.",
+  );
+}
+if (!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+  throw new Error(
+    "Missing required environment variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN. Check your .env.local file.",
+  );
+}
+if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+  throw new Error(
+    "Missing required environment variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID. Check your .env.local file.",
+  );
 }
 
 const firebaseConfig = {

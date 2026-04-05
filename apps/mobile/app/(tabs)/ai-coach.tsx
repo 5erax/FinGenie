@@ -369,25 +369,24 @@ export default function AiCoachScreen() {
 
       {/* Session Drawer Overlay */}
       {showDrawer && (
-        <Pressable
-          style={styles.overlay}
-          onPress={() => setShowDrawer(false)}
-        >
-          <Pressable onPress={() => {}}>
-            <SessionDrawer
-              sessions={sessions}
-              activeId={activeSessionId}
-              onSelect={handleSelectSession}
-              onNew={handleNewChat}
-              onDelete={handleDeleteSession}
-              onClose={() => setShowDrawer(false)}
-            />
-          </Pressable>
-        </Pressable>
+        <View style={styles.overlay}>
+          <Pressable
+            style={styles.overlayBackdrop}
+            onPress={() => setShowDrawer(false)}
+          />
+          <SessionDrawer
+            sessions={sessions}
+            activeId={activeSessionId}
+            onSelect={handleSelectSession}
+            onNew={handleNewChat}
+            onDelete={handleDeleteSession}
+            onClose={() => setShowDrawer(false)}
+          />
+        </View>
       )}
 
       {/* Chat Content */}
-      {!activeSessionId && !isLoadingSession ? (
+      {!activeSessionId && !isStreaming ? (
         <FlatList
           data={[]}
           renderItem={() => null}
@@ -399,7 +398,7 @@ export default function AiCoachScreen() {
           }
           contentContainerStyle={styles.chatContent}
         />
-      ) : isLoadingSession && messages.length === 0 ? (
+      ) : isLoadingSession && messages.length === 0 && !isStreaming ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Đang tải...</Text>
@@ -538,8 +537,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
     zIndex: 100,
+  },
+  overlayBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   drawer: {
     position: "absolute",

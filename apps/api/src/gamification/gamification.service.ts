@@ -213,6 +213,84 @@ export class GamificationService {
     return updatedTask;
   }
 
+  // ─── Auto-Progress ─────────────────────────────────────────────────────────
+
+  /**
+   * Increment progress on pending daily tasks matching the given category.
+   * When progress reaches `targetValue`, auto-completes the task and awards XP/coins.
+   *
+   * Called automatically by other services:
+   * - TransactionService  → TaskCategory.tracking  (also .spending for expenses)
+   * - AiChatService       → TaskCategory.learning
+   * - SavingPlanService   → TaskCategory.saving
+   *
+   * Safe to call fire-and-forget — never throws to the caller.
+   */
+  async progressTask(
+    userId: string,
+    category: TaskCategory,
+    incrementBy = 1,
+  ): Promise<void> {
+    try {
+      const today = this.getStartOfTodayUtc();
+      const tomorrow = this.addDays(today, 1);
+
+      // Find all pending tasks for today in this category
+      const pendingTasks = await this.prisma.dailyTask.findMany({
+        where: {
+          userId,
+          category,
+          status: TaskStatus.pending,
+          date: { gte: today, lt: tomorrow },
+        },
+      });
+
+      for (const task of pendingTasks) {
+        const newProgress = Math.min(
+          task.progress + incrementBy,
+          task.targetValue ?? 1,
+        );
+        const isComplete = newProgress >= (task.targetValue ?? 1);
+
+        await this.prisma.dailyTask.update({
+          where: { id: task.id },
+          data: {
+            progress: newProgress,
+            ...(isComplete
+              ? { status: TaskStatus.completed, completedAt: new Date() }
+              : {}),
+          },
+        });
+
+        if (isComplete) {
+          this.logger.log(
+            `Auto-completed task "${task.title}" for user: ${userId}`,
+          );
+
+          // Award XP + coins (fire-and-forget)
+          this.awardPetXp(userId, task.xpReward).catch((err) =>
+            this.logger.error(`Pet XP award failed: ${String(err)}`),
+          );
+
+          if (task.coinReward > 0) {
+            this.awardCoins(userId, task.coinReward).catch((err) =>
+              this.logger.error(`Coin award failed: ${String(err)}`),
+            );
+          }
+
+          // Check achievements
+          this.checkAndUnlockAchievements(userId).catch((err) =>
+            this.logger.error(`Achievement check failed: ${String(err)}`),
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `progressTask failed (user: ${userId}, category: ${category}): ${String(error)}`,
+      );
+    }
+  }
+
   // ─── Streak ────────────────────────────────────────────────────────────────
 
   /**

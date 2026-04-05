@@ -21,7 +21,6 @@ import {
   useFeedPet,
   usePlayWithPet,
   useDailyTasks,
-  useCompleteTask,
   useStreak,
   useCheckIn,
   useAchievements,
@@ -451,7 +450,6 @@ export default function PetScreen() {
   const { data: dailyTasks } = useDailyTasks();
   const feedPetMut = useFeedPet();
   const playPetMut = usePlayWithPet();
-  const completeTaskMut = useCompleteTask();
   const checkInMut = useCheckIn();
 
   const totalIncome = summary?.totalIncome ?? 0;
@@ -1105,88 +1103,123 @@ export default function PetScreen() {
                 </Text>
               </View>
             </View>
-            {dailyTasks.map((task) => (
-              <Pressable
-                key={task.id}
-                style={[
-                  styles.taskItem,
-                  { borderBottomColor: colors.border },
-                  task.status === "completed" && styles.taskItemCompleted,
-                ]}
-                onPress={() => {
-                  if (task.status === "pending")
-                    completeTaskMut.mutate(task.id, {
-                      onError: () =>
-                        Alert.alert(
-                          "Lỗi",
-                          "Không thể hoàn thành nhiệm vụ. Vui lòng thử lại.",
-                        ),
-                    });
-                }}
-                disabled={
-                  task.status !== "pending" || completeTaskMut.isPending
-                }
-              >
+            {dailyTasks.map((task) => {
+              const target = task.targetValue ?? 1;
+              const progress = task.progress ?? 0;
+              const isCompleted = task.status === "completed";
+              const progressPct = Math.min(progress / target, 1);
+
+              return (
                 <View
+                  key={task.id}
                   style={[
-                    styles.taskCheck,
-                    { borderColor: colors.border },
-                    task.status === "completed" && [
-                      styles.taskCheckDone,
-                      {
-                        backgroundColor: colors.success,
-                        borderColor: colors.success,
-                      },
-                    ],
+                    styles.taskItem,
+                    { borderBottomColor: colors.border },
+                    isCompleted && styles.taskItemCompleted,
                   ]}
                 >
-                  {task.status === "completed" && (
-                    <Ionicons
-                      name="checkmark"
-                      size={12}
-                      color={colors.background}
-                    />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
+                  <View
                     style={[
-                      styles.taskTitle,
-                      { color: colors.textPrimary },
-                      task.status === "completed" && [
-                        styles.taskTitleDone,
-                        { color: colors.textMuted },
+                      styles.taskCheck,
+                      { borderColor: colors.border },
+                      isCompleted && [
+                        styles.taskCheckDone,
+                        {
+                          backgroundColor: colors.success,
+                          borderColor: colors.success,
+                        },
                       ],
                     ]}
                   >
-                    {task.title}
-                  </Text>
-                  {task.description && (
+                    {isCompleted && (
+                      <Ionicons
+                        name="checkmark"
+                        size={12}
+                        color={colors.background}
+                      />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text
-                      style={[styles.taskDesc, { color: colors.textMuted }]}
+                      style={[
+                        styles.taskTitle,
+                        { color: colors.textPrimary },
+                        isCompleted && [
+                          styles.taskTitleDone,
+                          { color: colors.textMuted },
+                        ],
+                      ]}
                     >
-                      {task.description}
+                      {task.title}
                     </Text>
-                  )}
+                    {task.description && (
+                      <Text
+                        style={[styles.taskDesc, { color: colors.textMuted }]}
+                      >
+                        {task.description}
+                      </Text>
+                    )}
+                    {/* Progress bar */}
+                    {!isCompleted && target > 1 && (
+                      <View style={styles.taskProgressRow}>
+                        <View
+                          style={[
+                            styles.taskProgressBar,
+                            { backgroundColor: colors.border },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.taskProgressFill,
+                              {
+                                backgroundColor: colors.accent,
+                                width: `${progressPct * 100}%` as `${number}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.taskProgressText,
+                            { color: colors.textMuted },
+                          ]}
+                        >
+                          {progress}/{target}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.taskRewards}>
+                    {task.xpReward > 0 && (
+                      <Text
+                        style={[
+                          styles.taskRewardText,
+                          {
+                            color: isCompleted ? colors.success : colors.accent,
+                          },
+                        ]}
+                      >
+                        {isCompleted ? "" : "+"}
+                        {task.xpReward} XP
+                      </Text>
+                    )}
+                    {task.coinReward > 0 && (
+                      <Text
+                        style={[
+                          styles.taskRewardText,
+                          {
+                            color: isCompleted ? colors.success : colors.accent,
+                          },
+                        ]}
+                      >
+                        {isCompleted ? "" : "+"}
+                        {task.coinReward} 🪙
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.taskRewards}>
-                  {task.xpReward > 0 && (
-                    <Text
-                      style={[styles.taskRewardText, { color: colors.accent }]}
-                    >
-                      +{task.xpReward} XP
-                    </Text>
-                  )}
-                  {task.coinReward > 0 && (
-                    <Text
-                      style={[styles.taskRewardText, { color: colors.accent }]}
-                    >
-                      +{task.coinReward} 🪙
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -1759,6 +1792,26 @@ const styles = StyleSheet.create({
   taskDesc: {
     fontSize: FONT_SIZE.xs,
     marginTop: SPACING.xxs,
+  },
+  taskProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  taskProgressBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  taskProgressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  taskProgressText: {
+    fontSize: FONT_SIZE.xs,
+    minWidth: 28,
   },
   taskRewards: {
     alignItems: "flex-end",

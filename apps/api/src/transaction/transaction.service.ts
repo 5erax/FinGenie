@@ -4,10 +4,16 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, TransactionType, AlertType } from "@prisma/client";
+import {
+  Prisma,
+  TransactionType,
+  AlertType,
+  TaskCategory,
+} from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AlertService } from "../alert/alert.service";
 import { SavingPlanService } from "../saving-plan/saving-plan.service";
+import { GamificationService } from "../gamification/gamification.service";
 import type { CreateTransactionDto } from "./dto/create-transaction.dto";
 import type { UpdateTransactionDto } from "./dto/update-transaction.dto";
 import type { QueryTransactionsDto } from "./dto/query-transactions.dto";
@@ -20,6 +26,7 @@ export class TransactionService {
     private readonly prisma: PrismaService,
     private readonly alertService: AlertService,
     private readonly savingPlanService: SavingPlanService,
+    private readonly gamificationService: GamificationService,
   ) {}
 
   async findAllByUser(userId: string, query: QueryTransactionsDto) {
@@ -121,6 +128,22 @@ export class TransactionService {
     });
 
     this.logger.log(`Transaction created: ${transaction.id} (user: ${userId})`);
+
+    // Auto-progress daily quest: "Ghi lại X giao dịch" (tracking)
+    this.gamificationService
+      .progressTask(userId, TaskCategory.tracking, 1)
+      .catch((err) =>
+        this.logger.error(`Quest progress (tracking) failed: ${String(err)}`),
+      );
+
+    // Also progress "spending" quest for expense transactions
+    if (dto.type === TransactionType.expense) {
+      this.gamificationService
+        .progressTask(userId, TaskCategory.spending, 1)
+        .catch((err) =>
+          this.logger.error(`Quest progress (spending) failed: ${String(err)}`),
+        );
+    }
 
     // Check spending and create alerts if needed (only for expenses)
     if (dto.type === TransactionType.expense) {

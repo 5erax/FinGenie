@@ -6,13 +6,14 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { Content } from "@google/generative-ai";
-import { MessageRole } from "@prisma/client";
+import { MessageRole, TaskCategory } from "@prisma/client";
 import type { User } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { GeminiService } from "./gemini.service";
 import { TransactionService } from "../transaction/transaction.service";
 import { SavingPlanService } from "../saving-plan/saving-plan.service";
 import { WalletService } from "../wallet/wallet.service";
+import { GamificationService } from "../gamification/gamification.service";
 import type { CreateSessionDto, SendMessageDto, QuerySessionsDto } from "./dto";
 
 const FREE_DAILY_LIMIT = 5;
@@ -27,6 +28,7 @@ export class AiChatService {
     private readonly transactionService: TransactionService,
     private readonly savingPlanService: SavingPlanService,
     private readonly walletService: WalletService,
+    private readonly gamificationService: GamificationService,
   ) {}
 
   // ─── Session CRUD ────────────────────────────────────────────────────────────
@@ -177,6 +179,13 @@ export class AiChatService {
 
     this.logger.log(`Message sent in session ${sessionId} (user: ${user.id})`);
 
+    // Auto-progress daily quest: "Mở AI Coach hỏi 1 câu" (learning)
+    this.gamificationService
+      .progressTask(user.id, TaskCategory.learning, 1)
+      .catch((err) =>
+        this.logger.error(`Quest progress (learning) failed: ${String(err)}`),
+      );
+
     return { userMessage, assistantMessage };
   }
 
@@ -286,6 +295,14 @@ export class AiChatService {
     this.logger.log(
       `Stream completed in session ${sessionId} (user: ${user.id})`,
     );
+
+    // Auto-progress daily quest: "Mở AI Coach hỏi 1 câu" (learning)
+    this.gamificationService
+      .progressTask(user.id, TaskCategory.learning, 1)
+      .catch((err) =>
+        this.logger.error(`Quest progress (learning) failed: ${String(err)}`),
+      );
+
     yield { type: "done", assistantMessage };
   }
 
