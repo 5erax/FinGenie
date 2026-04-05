@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { API_BASE_URL } from "@/constants/config";
 
 export interface AIStatus {
   available: boolean;
@@ -36,6 +37,20 @@ interface PaginatedResponse<T> {
 interface SendMessageResponse {
   userMessage: AIMessage;
   assistantMessage: AIMessage;
+}
+
+// SSE event types from the streaming endpoint
+export type StreamEvent =
+  | { type: "user_message"; userMessage: AIMessage }
+  | { type: "chunk"; content: string }
+  | { type: "done"; assistantMessage: AIMessage }
+  | { type: "error"; message: string; statusCode: number };
+
+// Get auth token for fetch-based requests (bypasses axios)
+function getAuthToken(): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useAuthStore } = require("@/stores/auth-store");
+  return useAuthStore.getState().token;
 }
 
 export const aiChatService = {
@@ -84,5 +99,84 @@ export const aiChatService = {
       { content },
     );
     return response.data;
+  },
+
+  /**
+   * Send a message and stream the AI response via SSE.
+   * Uses native fetch (not axios) to consume the text/event-stream.
+   * Calls `onEvent` for each parsed SSE event.
+   * Returns an AbortController so the caller can cancel the stream.
+   */
+  sendMessageStream(
+    sessionId: string,
+    content: string,
+    onEvent: (event: StreamEvent) => void,
+    onError?: (error: Error) => void,
+  ): AbortController {
+    const controller = new AbortController();
+
+    const run = async () => {
+      const token = getAuthToken();
+      const url = `${API_BASE_URL}/ai-chat/sessions/${sessionId}/messages/stream`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ content }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Stream request failed: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("ReadableStream not supported");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE lines: each event is "data: {...}\n\n"
+        const lines = buffer.split("\n");
+        buffer = "";
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          if (line.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(line.slice(6)) as StreamEvent;
+              onEvent(parsed);
+            } catch {
+              // Incomplete JSON — put it back in the buffer
+              buffer = lines.slice(i).join("\n");
+              break;
+            }
+          } else if (line !== "") {
+            // Non-empty, non-data line — keep in buffer (might be partial)
+            buffer = lines.slice(i).join("\n");
+            break;
+          }
+        }
+      }
+    };
+
+    run().catch((err: unknown) => {
+      if ((err as Error).name === "AbortError") return; // cancelled by user
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    });
+
+    return controller;
   },
 };

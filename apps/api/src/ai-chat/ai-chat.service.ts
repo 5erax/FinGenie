@@ -180,6 +180,115 @@ export class AiChatService {
     return { userMessage, assistantMessage };
   }
 
+  /**
+   * Stream message response via SSE.
+   * Saves user message immediately, streams AI response, then saves assistant message.
+   */
+  async *sendMessageStream(
+    user: User,
+    sessionId: string,
+    dto: SendMessageDto,
+  ): AsyncGenerator<{
+    type: string;
+    content?: string;
+    userMessage?: unknown;
+    assistantMessage?: unknown;
+  }> {
+    // 1. Rate limit check
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const todayMessageCount = await this.prisma.aIMessage.count({
+      where: {
+        role: MessageRole.user,
+        session: { userId: user.id },
+        createdAt: { gte: startOfDay },
+      },
+    });
+
+    const isPremium = await this.checkFreshPremiumStatus(user.id);
+
+    if (!isPremium && todayMessageCount >= FREE_DAILY_LIMIT) {
+      throw new ForbiddenException(
+        "Bạn đã hết lượt tin nhắn miễn phí hôm nay. Nâng cấp Premium để chat không giới hạn! 🌟",
+      );
+    }
+
+    // 2. Find session
+    const session = await this.findSessionById(user.id, sessionId);
+
+    // 3. Save user message
+    const userMessage = await this.prisma.aIMessage.create({
+      data: {
+        sessionId,
+        role: MessageRole.user,
+        content: dto.content,
+      },
+    });
+
+    // Emit user message event
+    yield { type: "user_message", userMessage };
+
+    // 4. Check AI availability
+    if (!this.geminiService.isAvailable) {
+      const fallback = "⚠️ AI Coach hiện không khả dụng. Vui lòng thử lại sau.";
+      const assistantMessage = await this.prisma.aIMessage.create({
+        data: { sessionId, role: MessageRole.assistant, content: fallback },
+      });
+      yield { type: "done", content: fallback, assistantMessage };
+      return;
+    }
+
+    // 5. Build context
+    const financialContext = await this.buildFinancialContext(user.id);
+    const history: Content[] = session.messages
+      .filter((m) => m.role !== MessageRole.system)
+      .map((m) => ({
+        role: m.role === MessageRole.assistant ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+    // 6. Stream from Gemini
+    let fullResponse = "";
+    try {
+      for await (const chunk of this.geminiService.chatStream(
+        history,
+        dto.content,
+        financialContext,
+      )) {
+        fullResponse += chunk;
+        yield { type: "chunk", content: chunk };
+      }
+    } catch (error) {
+      this.logger.error(
+        `Gemini streaming error in session ${sessionId}: ${String(error)}`,
+      );
+      fullResponse =
+        fullResponse ||
+        "⚠️ AI Coach tạm thời gặp sự cố. Vui lòng thử lại sau ít phút.";
+    }
+
+    // 7. Save assistant message
+    const assistantMessage = await this.prisma.aIMessage.create({
+      data: {
+        sessionId,
+        role: MessageRole.assistant,
+        content: fullResponse,
+      },
+    });
+
+    // 8. Touch session
+    await this.prisma.aIChatSession.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date() },
+    });
+
+    this.logger.log(
+      `Stream completed in session ${sessionId} (user: ${user.id})`,
+    );
+    yield { type: "done", assistantMessage };
+  }
+
   // ─── Status ──────────────────────────────────────────────────────────────────
 
   async getStatus(user: User) {

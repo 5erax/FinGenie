@@ -19,10 +19,10 @@ import {
   useAISession,
   useCreateAISession,
   useDeleteAISession,
-  useSendMessage,
+  useSendMessageStream,
 } from "../../src/hooks/use-ai-chat";
 import type { AIMessage, AIChatSession } from "../../src/services/ai-chat-service";
-import { useThemeColors } from '../../src/hooks/use-theme-colors';
+import { useThemeColors } from "../../src/hooks/use-theme-colors";
 import { SPACING, FONT_SIZE, FONT_WEIGHT, RADIUS, HIT_SLOP, ICON_SIZE } from "../../src/constants/theme";
 
 const SUGGESTIONS = [
@@ -140,8 +140,8 @@ function MessageBubble({ msg }: { msg: AIMessage }) {
       ]}
     >
       {!isUser && (
-        <View style={styles.bubbleIcon}>
-          <Ionicons name="sparkles" size={ICON_SIZE.xs} color={colors.accent} />
+        <View style={[styles.bubbleIcon, { backgroundColor: colors.accentDim }]}>
+          <Text style={styles.bubbleIconEmoji}>💰</Text>
         </View>
       )}
       <View
@@ -167,13 +167,13 @@ function MessageBubble({ msg }: { msg: AIMessage }) {
   );
 }
 
-// ─── Typing Indicator ────────────────────────────────────
-function TypingIndicator() {
+// ─── Streaming Bubble (shows AI response as it streams in) ───
+function StreamingBubble({ content }: { content: string }) {
   const colors = useThemeColors();
   return (
     <View style={[styles.bubble, styles.bubbleAssistant]}>
-      <View style={styles.bubbleIcon}>
-        <Ionicons name="sparkles" size={ICON_SIZE.xs} color={colors.accent} />
+      <View style={[styles.bubbleIcon, { backgroundColor: colors.accentDim }]}>
+        <Text style={styles.bubbleIconEmoji}>💰</Text>
       </View>
       <View
         style={[
@@ -182,10 +182,17 @@ function TypingIndicator() {
           { backgroundColor: colors.surface, borderColor: colors.border },
         ]}
       >
-        <View style={styles.typingDots}>
-          <ActivityIndicator size="small" color={colors.accent} />
-          <Text style={[styles.typingText, { color: colors.textMuted }]}>Đang suy nghĩ...</Text>
-        </View>
+        {content ? (
+          <Text style={[styles.bubbleText, { color: colors.textSecondary }]}>
+            {content}
+            <Text style={{ color: colors.accent }}>▍</Text>
+          </Text>
+        ) : (
+          <View style={styles.typingDots}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={[styles.typingText, { color: colors.textMuted }]}>Đang suy nghĩ...</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -202,8 +209,8 @@ function WelcomeView({
   const colors = useThemeColors();
   return (
     <View style={styles.welcomeContainer}>
-      <View style={styles.welcomeIcon}>
-        <Ionicons name="sparkles" size={ICON_SIZE.xl} color={colors.accent} />
+      <View style={[styles.welcomeIcon, { backgroundColor: colors.accentDim }]}>
+        <Text style={styles.welcomeIconEmoji}>💰</Text>
       </View>
       <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>Xin chào!</Text>
       <Text style={[styles.welcomeDesc, { color: colors.textMuted }]}>
@@ -243,26 +250,24 @@ export default function AiCoachScreen() {
   const {
     data: sessionData,
     isLoading: isLoadingSession,
-    refetch: refetchSession,
   } = useAISession(activeSessionId);
 
   // Mutations
   const createSession = useCreateAISession();
   const deleteSession = useDeleteAISession();
-  const sendMessageMutation = useSendMessage();
+  const { sendStream, cancelStream, isStreaming, streamingContent } = useSendMessageStream();
 
   const sessions = sessionsData?.data ?? [];
   const messages = sessionData?.messages ?? [];
-  const isSending = sendMessageMutation.isPending;
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or streaming content
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || isStreaming) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length, isSending]);
+  }, [messages.length, isStreaming, streamingContent]);
 
   const remainingText = status
     ? status.isPremium
@@ -272,9 +277,7 @@ export default function AiCoachScreen() {
 
   const canSend =
     message.trim().length > 0 &&
-    !isSending &&
-    // Allow sending if status hasn't loaded yet (optimistic)
-    // or if premium, or if under daily limit
+    !isStreaming &&
     (!status ||
       status.isPremium ||
       (status.dailyLimit != null &&
@@ -284,7 +287,7 @@ export default function AiCoachScreen() {
   const handleSend = useCallback(
     async (text?: string) => {
       const content = (text ?? message).trim();
-      if (!content) return;
+      if (!content || isStreaming) return;
 
       let sessionId = activeSessionId;
 
@@ -304,29 +307,17 @@ export default function AiCoachScreen() {
 
       setMessage("");
 
-      try {
-        await sendMessageMutation.mutateAsync({
-          sessionId,
-          content,
-        });
-        refetchSession();
-      } catch {
-        Alert.alert("Lỗi", "Không thể gửi tin nhắn. Thử lại sau.");
-      }
+      // Use streaming endpoint
+      sendStream(sessionId, content);
     },
-    [
-      message,
-      activeSessionId,
-      createSession,
-      sendMessageMutation,
-      refetchSession,
-    ],
+    [message, activeSessionId, isStreaming, createSession, sendStream],
   );
 
   const handleNewChat = useCallback(() => {
+    if (isStreaming) cancelStream();
     setActiveSessionId(null);
     setShowDrawer(false);
-  }, []);
+  }, [isStreaming, cancelStream]);
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id);
@@ -348,6 +339,9 @@ export default function AiCoachScreen() {
     [activeSessionId, deleteSession, refetchSessions],
   );
 
+  // Build the display list: real messages + streaming bubble if active
+  const renderMessages = messages;
+
   // ─── Render ──────────────────────────────────────────
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -360,7 +354,7 @@ export default function AiCoachScreen() {
           <Ionicons name="menu" size={ICON_SIZE.md} color={colors.textSecondary} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Ionicons name="sparkles" size={ICON_SIZE.sm} color={colors.accent} />
+          <Text style={styles.headerIconEmoji}>💰</Text>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
             {sessionData?.title ?? "AI Coach"}
           </Text>
@@ -405,7 +399,7 @@ export default function AiCoachScreen() {
           }
           contentContainerStyle={styles.chatContent}
         />
-      ) : isLoadingSession ? (
+      ) : isLoadingSession && messages.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Đang tải...</Text>
@@ -413,11 +407,13 @@ export default function AiCoachScreen() {
       ) : (
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={renderMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messageList}
           renderItem={({ item }) => <MessageBubble msg={item} />}
-          ListFooterComponent={isSending ? <TypingIndicator /> : null}
+          ListFooterComponent={
+            isStreaming ? <StreamingBubble content={streamingContent} /> : null
+          }
           ListEmptyComponent={
             <WelcomeView
               onSuggestion={(text) => handleSend(text)}
@@ -432,9 +428,9 @@ export default function AiCoachScreen() {
 
       {/* AI Unavailable Banner */}
       {status && !status.available && (
-        <View style={[styles.statusBar, { backgroundColor: '#7f1d1d' }]}>
+        <View style={[styles.statusBar, { backgroundColor: "#7f1d1d" }]}>
           <Ionicons name="warning-outline" size={ICON_SIZE.xs} color="#fca5a5" />
-          <Text style={[styles.statusText, { color: '#fca5a5' }]}>
+          <Text style={[styles.statusText, { color: "#fca5a5" }]}>
             AI Coach hiện không khả dụng. Vui lòng thử lại sau.
           </Text>
         </View>
@@ -468,27 +464,32 @@ export default function AiCoachScreen() {
             onChangeText={setMessage}
             multiline
             maxLength={2000}
-            editable={!isSending}
+            editable={!isStreaming}
             onSubmitEditing={() => canSend && handleSend()}
           />
-          <Pressable
-            style={[
-              styles.sendBtn,
-              { backgroundColor: canSend ? colors.accent : colors.border },
-            ]}
-            disabled={!canSend}
-            onPress={() => handleSend()}
-          >
-            {isSending ? (
-              <ActivityIndicator size="small" color={colors.background} />
-            ) : (
+          {isStreaming ? (
+            <Pressable
+              style={[styles.sendBtn, { backgroundColor: colors.danger }]}
+              onPress={cancelStream}
+            >
+              <Ionicons name="stop" size={18} color={colors.background} />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                styles.sendBtn,
+                { backgroundColor: canSend ? colors.accent : colors.border },
+              ]}
+              disabled={!canSend}
+              onPress={() => handleSend()}
+            >
               <Ionicons
                 name="send"
                 size={18}
                 color={canSend ? colors.background : colors.textDark}
               />
-            )}
-          </Pressable>
+            </Pressable>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -518,6 +519,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: FONT_SIZE.base,
     fontWeight: FONT_WEIGHT.bold,
+  },
+  headerIconEmoji: {
+    fontSize: 18,
   },
   headerBtn: {
     width: 36,
@@ -648,10 +652,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: "rgba(167, 139, 250, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginTop: SPACING.xxs,
+  },
+  bubbleIconEmoji: {
+    fontSize: 14,
   },
   bubbleContent: {
     maxWidth: "75%",
@@ -691,10 +697,12 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 22,
-    backgroundColor: "rgba(167, 139, 250, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: SPACING.base,
+  },
+  welcomeIconEmoji: {
+    fontSize: 32,
   },
   welcomeTitle: {
     fontSize: FONT_SIZE.xxl,

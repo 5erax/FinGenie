@@ -124,4 +124,47 @@ export class GeminiService implements OnModuleInit {
       throw error; // Re-throw so ai-chat.service.ts catch block handles user-facing response
     }
   }
+
+  /**
+   * Stream a response with conversation history and financial context.
+   * Yields text chunks as they arrive from Gemini.
+   */
+  async *chatStream(
+    history: Content[],
+    userMessage: string,
+    financialContext: string,
+  ): AsyncGenerator<string> {
+    if (!this.model) {
+      yield "⚠️ AI Coach hiện không khả dụng. Vui lòng thử lại sau.";
+      return;
+    }
+
+    const contextHistory: Content[] = financialContext
+      ? [
+          {
+            role: "user",
+            parts: [
+              { text: `[Dữ liệu tài chính của tôi]\n${financialContext}` },
+            ],
+          },
+          {
+            role: "model",
+            parts: [
+              {
+                text: "Tôi đã nhận được thông tin tài chính của bạn. Hãy hỏi tôi bất cứ điều gì! 😊",
+              },
+            ],
+          },
+          ...history,
+        ]
+      : history;
+
+    const chat = this.model.startChat({ history: contextHistory });
+    const result = await chat.sendMessageStream(userMessage);
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) yield text;
+    }
+  }
 }
