@@ -51,4 +51,11 @@ export class FirebaseAdminService implements OnModuleInit {
   async deleteUser(uid: string): Promise<void> {
     await admin.auth().deleteUser(uid);
   }
+
+  async updateUser(
+    uid: string,
+    properties: admin.auth.UpdateRequest,
+  ): Promise<admin.auth.UserRecord> {
+    return admin.auth().updateUser(uid, properties);
+  }
 }

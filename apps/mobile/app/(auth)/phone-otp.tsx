@@ -86,8 +86,12 @@ export default function PhoneOTPScreen() {
         setError('Quá nhiều yêu cầu. Vui lòng thử lại sau vài phút.');
       } else if (message.includes('invalid-phone-number')) {
         setError('Số điện thoại không hợp lệ. Vui lòng kiểm tra lại.');
+      } else if (message.includes('billing-not-enabled') || message.includes('BILLING_NOT_ENABLED')) {
+        setError('Xác thực qua số điện thoại chưa được kích hoạt. Vui lòng đăng nhập bằng Email hoặc Google.');
+      } else if (message.includes('operation-not-allowed')) {
+        setError('Phương thức đăng nhập này chưa được kích hoạt. Vui lòng thử cách khác.');
       } else {
-        setError(message);
+        setError('Không thể gửi mã OTP. Vui lòng thử lại sau.');
       }
     } finally {
       setLoading(false);

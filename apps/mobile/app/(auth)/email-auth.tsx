@@ -70,11 +70,14 @@ export default function EmailAuthScreen() {
         // Send verification email
         await sendEmailVerification(result.user);
         setVerificationSent(true);
-        // onAuthStateChanged in initialize() handles loginToBackend + redirect
+        // onAuthStateChanged fires → loginToBackend → pendingEmailVerification = true
+        // Root layout will redirect to /(auth)/verify-email
       } else {
         // Login existing account
         await signInWithEmailAndPassword(auth, email.trim(), password);
-        // onAuthStateChanged in initialize() handles loginToBackend + redirect
+        // onAuthStateChanged fires → loginToBackend
+        // If email not verified → pendingEmailVerification = true → redirect to verify-email
+        // If email verified → isAuthenticated = true → redirect to tabs
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';

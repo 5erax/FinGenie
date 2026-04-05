@@ -112,13 +112,14 @@ enum TaskStatus {
 // ─────────────────────────────────────
 
 model User {
-  id           String    @id @default(cuid())
-  email        String?   @unique
-  phone        String?   @unique
-  displayName  String
-  avatarUrl    String?
-  role         UserRole  @default(user)
-  premiumUntil DateTime?
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  phone         String?   @unique
+  displayName   String
+  avatarUrl     String?
+  role          UserRole  @default(user)
+  emailVerified Boolean   @default(false)
+  premiumUntil  DateTime?
 
   // Firebase Auth UID for linking
   firebaseUid String @unique
@@ -127,14 +128,15 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  wallets       Wallet[]
-  transactions  Transaction[]
-  categories    Category[]
-  savingPlans   SavingPlan[]
-  alerts        AlertEvent[]
-  chatSessions  AIChatSession[]
-  subscriptions Subscription[]
-  paymentOrders PaymentOrder[]
+  wallets            Wallet[]
+  transactions       Transaction[]
+  categories         Category[]
+  savingPlans        SavingPlan[]
+  alerts             AlertEvent[]
+  chatSessions       AIChatSession[]
+  subscriptions      Subscription[]
+  paymentOrders      PaymentOrder[]
+  emailVerifications EmailVerification[]
 
   // Gamification
   pet              Pet?
@@ -143,6 +145,25 @@ model User {
   streak           UserStreak?
 
   @@map("users")
+}
+
+model EmailVerification {
+  id        String    @id @default(cuid())
+  userId    String
+  email     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean   @default(false)
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, code])
+  @@index([userId])
+  @@map("email_verifications")
 }
 
 model Wallet {

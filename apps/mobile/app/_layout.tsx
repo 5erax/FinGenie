@@ -67,6 +67,9 @@ export default function RootLayout() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isNewUser = useAuthStore((s) => s.isNewUser);
+  const pendingEmailVerification = useAuthStore(
+    (s) => s.pendingEmailVerification,
+  );
   const hydrate = usePreferencesStore((s) => s.hydrate);
   const isHydrated = usePreferencesStore((s) => s.isHydrated);
   const colors = useThemeColors();
@@ -93,9 +96,19 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === "(auth)";
     const onOnboarding =
       inAuthGroup && (segments as string[])[1] === "onboarding";
+    const onVerifyEmail =
+      inAuthGroup && (segments as string[])[1] === "verify-email";
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Not authenticated & not on auth screen -> redirect to login
+    // Email verification pending — keep user on verify-email screen
+    if (pendingEmailVerification) {
+      if (!onVerifyEmail) {
+        router.replace("/(auth)/verify-email");
+      }
+      return;
+    }
+
+    if (!isAuthenticated && (!inAuthGroup || onVerifyEmail)) {
+      // Not authenticated & not on auth screen (or stuck on verify-email after logout) -> redirect to login
       router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup && !onOnboarding) {
       // Authenticated, on auth screen (not onboarding) -> redirect
@@ -109,7 +122,14 @@ export default function RootLayout() {
       // New user somehow got to tabs without onboarding -> redirect
       router.replace("/(auth)/onboarding");
     }
-  }, [isReady, isAuthenticated, isNewUser, segments, router]);
+  }, [
+    isReady,
+    isAuthenticated,
+    isNewUser,
+    pendingEmailVerification,
+    segments,
+    router,
+  ]);
 
   // Show splash while auth or preferences are initializing
   if (!isReady) {

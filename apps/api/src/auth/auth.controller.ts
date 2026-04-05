@@ -12,10 +12,13 @@ import {
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiBadRequestResponse,
 } from "@nestjs/swagger";
 import type { User } from "@prisma/client";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
+import { SendVerificationOtpDto } from "./dto/send-verification-otp.dto";
+import { VerifyEmailOtpDto } from "./dto/verify-email-otp.dto";
 import { Public } from "./decorators/public.decorator";
 import { CurrentUser } from "./decorators/current-user.decorator";
 
@@ -49,6 +52,7 @@ export class AuthController {
           },
         },
         isNewUser: { type: "boolean" },
+        emailVerified: { type: "boolean" },
       },
     },
   })
@@ -69,6 +73,63 @@ export class AuthController {
       },
       isNewUser,
       emailVerified,
+    };
+  }
+
+  @Post("send-verification-otp")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Send email verification OTP",
+    description:
+      "Generate and send a 6-digit OTP to the user's email for verification.",
+  })
+  @ApiOkResponse({ description: "OTP sent successfully" })
+  @ApiUnauthorizedResponse({ description: "Invalid Firebase token" })
+  @ApiBadRequestResponse({
+    description: "User not found, email already verified, or rate limited",
+  })
+  async sendVerificationOtp(@Body() dto: SendVerificationOtpDto) {
+    return this.authService.sendVerificationOtp(dto.idToken);
+  }
+
+  @Post("verify-email-otp")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Verify email with OTP code",
+    description:
+      "Verify the 6-digit OTP code to mark the user's email as verified.",
+  })
+  @ApiOkResponse({
+    description: "Email verified successfully",
+    schema: {
+      type: "object",
+      properties: {
+        verified: { type: "boolean" },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: "Invalid Firebase token" })
+  @ApiBadRequestResponse({ description: "Invalid or expired OTP" })
+  async verifyEmailOtp(@Body() dto: VerifyEmailOtpDto) {
+    const { verified, user } = await this.authService.verifyEmailOtp(
+      dto.idToken,
+      dto.code,
+    );
+
+    return {
+      verified,
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+        premiumUntil: user.premiumUntil,
+      },
+      emailVerified: verified,
     };
   }
 

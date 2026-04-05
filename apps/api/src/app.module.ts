@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./prisma";
 import { FirebaseAdminModule } from "./firebase";
+import { EmailModule } from "./email";
 import { AuthModule } from "./auth";
 import { UserModule } from "./user";
 import { CategoryModule } from "./category";
@@ -28,6 +29,7 @@ import { AdminModule } from "./admin";
 
     PrismaModule,
     FirebaseAdminModule,
+    EmailModule,
     AuthModule,
     UserModule,
     CategoryModule,
