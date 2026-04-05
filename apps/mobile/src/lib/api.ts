@@ -26,7 +26,7 @@ function getAuthState(): AuthState {
 
 // Track if a token refresh is already in progress to avoid parallel refreshes
 let isRefreshing = false;
-let refreshSubscribers: Array<(token: string) => void> = [];
+let refreshSubscribers: ((token: string) => void)[] = [];
 
 function onTokenRefreshed(token: string) {
   refreshSubscribers.forEach((cb) => cb(token));

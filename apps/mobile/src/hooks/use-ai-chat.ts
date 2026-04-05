@@ -1,9 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  aiChatService,
-  type AIChatSession,
-  type AIMessage,
-} from "@/services/ai-chat-service";
+import { aiChatService } from "@/services/ai-chat-service";
 import { useIsAuthenticated } from "./use-auth-gate";
 
 const keys = {

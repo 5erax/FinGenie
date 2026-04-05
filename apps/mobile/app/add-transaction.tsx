@@ -96,9 +96,14 @@ export default function AddTransactionScreen() {
   const { data: walletsRaw, isLoading: loadingWallets } = useWallets();
   const { data: categoriesRaw, isLoading: loadingCats } = useCategories();
 
-  const wallets: Wallet[] = (walletsRaw as Wallet[] | undefined) ?? [];
-  const categories: Category[] =
-    (categoriesRaw as Category[] | undefined) ?? [];
+  const wallets: Wallet[] = useMemo(
+    () => (walletsRaw as Wallet[] | undefined) ?? [],
+    [walletsRaw],
+  );
+  const categories: Category[] = useMemo(
+    () => (categoriesRaw as Category[] | undefined) ?? [],
+    [categoriesRaw],
+  );
 
   // ── Form state ────────────────────────────────────────────────────────────
 
@@ -162,7 +167,7 @@ export default function AddTransactionScreen() {
 
   // ── Validation ────────────────────────────────────────────────────────────
 
-  function validate(): boolean {
+  const validate = useCallback((): boolean => {
     const errs: Record<string, string> = {};
     if (!amountNumber || amountNumber <= 0) {
       errs.amount = "Vui lòng nhập số tiền hợp lệ";
@@ -178,7 +183,7 @@ export default function AddTransactionScreen() {
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
-  }
+  }, [amountNumber, walletId, categoryId, date]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
 

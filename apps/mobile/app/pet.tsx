@@ -12,8 +12,6 @@ import {
 } from "react-native";
 
 import { shadow } from "../src/utils/shadow";
-
-const USE_NATIVE_DRIVER = Platform.OS !== "web";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -37,6 +35,8 @@ import {
 } from "../src/constants/theme";
 import { useThemeColors } from "../src/hooks/use-theme-colors";
 import { ScreenHeader } from "../src/components/ScreenHeader";
+
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -503,9 +503,9 @@ export default function PetScreen() {
   }, [bobAnim]);
 
   // ── Reactions ──────────────────────────────────────────────────────────────
-  const [reactions, setReactions] = useState<
-    Array<{ id: number; emoji: string }>
-  >([]);
+  const [reactions, setReactions] = useState<{ id: number; emoji: string }[]>(
+    [],
+  );
   const reactionId = useRef(0);
 
   const removeReaction = useCallback((id: number) => {

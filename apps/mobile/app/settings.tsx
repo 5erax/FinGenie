@@ -136,7 +136,7 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
 
   // Avatar
-  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [savingAvatar] = useState(false);
 
   function getInitials(name?: string | null): string {
     if (!name) return "?";

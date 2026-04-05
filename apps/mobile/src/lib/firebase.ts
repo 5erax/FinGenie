@@ -14,7 +14,6 @@ function createAuth(firebaseApp: FirebaseApp): Auth {
     // Dynamic require to avoid bundling issues on web
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getReactNativePersistence } = require("firebase/auth");
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
     return initializeAuth(firebaseApp, {

@@ -15,7 +15,6 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -147,7 +146,10 @@ export default function TransactionsScreen() {
   const { data: categoriesData } = useCategories();
   const { mutateAsync: deleteTransaction } = useDeleteTransaction();
 
-  const categories: Category[] = (categoriesData as Category[] | undefined) ?? [];
+  const categories: Category[] = useMemo(
+    () => (categoriesData as Category[] | undefined) ?? [],
+    [categoriesData],
+  );
 
   // ── Transaction accumulation ──────────────────────────────────────────────
 

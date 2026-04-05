@@ -123,7 +123,7 @@ function AlertRow({ item, onPress, onDelete }: AlertRowProps) {
         style={[
           styles.alertCard,
           { backgroundColor: colors.background },
-          !item.isRead && styles.alertCardUnread,
+          !item.isRead && { backgroundColor: colors.surface },
         ]}
         onPress={() => !item.isRead && onPress(item.id)}
         android_ripple={{ color: colors.accentDim }}
@@ -218,7 +218,7 @@ function FilterHeader({
                 style={[
                   styles.filterBadge,
                   { backgroundColor: colors.accentDim },
-                  isActive && styles.filterBadgeActive,
+                  isActive && { backgroundColor: colors.accent },
                 ]}
               >
                 <Text
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   alertCardUnread: {
-    backgroundColor: "#0d0d10",
+    // backgroundColor overridden inline with colors.surface
   },
   unreadBar: {
     position: "absolute",

@@ -163,7 +163,10 @@ export default function StatsScreen() {
     refetch: refetchCats,
   } = useCategories();
 
-  const allTransactions: TxItem[] = txPage?.data ?? [];
+  const allTransactions: TxItem[] = useMemo(
+    () => txPage?.data ?? [],
+    [txPage?.data],
+  );
 
   // ── Derived data ───────────────────────────────────────────────────────────
 

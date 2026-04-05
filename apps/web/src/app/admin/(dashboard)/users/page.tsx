@@ -253,6 +253,7 @@ export default function UsersPage() {
       );
     } catch (err) {
       console.error("updateUserRole:", err);
+      setError("Cập nhật vai trò thất bại. Vui lòng thử lại.");
     } finally {
       setUpdatingRole(null);
     }
@@ -275,6 +276,7 @@ export default function UsersPage() {
       setDeleteTarget(null);
     } catch (err) {
       console.error("deleteUser:", err);
+      setError("Xóa người dùng thất bại. Vui lòng thử lại.");
     } finally {
       setDeleting(false);
     }

@@ -35,7 +35,7 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getAuthProvider(
-  firebaseUser: { providerData?: Array<{ providerId: string }> } | null,
+  firebaseUser: { providerData?: { providerId: string }[] } | null,
 ): string {
   if (!firebaseUser?.providerData?.length) return "anonymous";
   const provider = firebaseUser.providerData[0]?.providerId;
@@ -96,7 +96,7 @@ export default function SecurityScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [, setPasswordSuccess] = useState(false);
 
   // Delete account state
   const [deleting, setDeleting] = useState(false);
