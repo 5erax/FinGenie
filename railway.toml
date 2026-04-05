@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd packages/database && npx prisma generate && cd ../../apps/api && npx nest build"
+
+[deploy]
+startCommand = "node apps/api/dist/main"
+healthcheckPath = "/docs"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
