@@ -70,6 +70,12 @@ export class AuthService {
       }
 
       this.logger.log(`User logged in: ${user.id} (${user.displayName})`);
+
+      // Sync role to Firebase custom claims for web admin auth
+      this.syncRoleToClaims(decoded.uid, user.role).catch((err) =>
+        this.logger.warn(`Failed to sync role claims: ${err}`),
+      );
+
       return {
         user,
         isNewUser: false,
@@ -227,5 +233,31 @@ export class AuthService {
     return this.prisma.user.findUnique({
       where: { firebaseUid: uid },
     });
+  }
+
+  /**
+   * Sync user role from DB to Firebase custom claims.
+   * This allows the web admin dashboard to check `tokenResult.claims.role`.
+   */
+  private async syncRoleToClaims(
+    firebaseUid: string,
+    role: string,
+  ): Promise<void> {
+    try {
+      const existingClaims = await this.firebase
+        .getUser(firebaseUid)
+        .then((u) => u.customClaims ?? {});
+      if (existingClaims.role !== role) {
+        await this.firebase.setCustomClaims(firebaseUid, {
+          ...existingClaims,
+          role,
+        });
+        this.logger.log(
+          `Synced role="${role}" to Firebase claims for uid=${firebaseUid}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`syncRoleToClaims failed: ${err}`);
+    }
   }
 }

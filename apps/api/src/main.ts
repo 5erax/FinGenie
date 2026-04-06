@@ -11,6 +11,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn", "log", "debug", "verbose"],
+    rawBody: true, // Required for Stripe webhook signature verification
   });
 
   // Security middleware
@@ -22,7 +23,7 @@ async function bootstrap(): Promise<void> {
     origin: isProduction
       ? process.env.CORS_ORIGINS
         ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
-        : ["http://localhost:3000"]
+        : true // Allow all origins if CORS_ORIGINS not explicitly set (Railway)
       : true, // Allow all origins in development (Expo web, LAN devices, etc.)
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -15,6 +15,7 @@ import {
 import { shadow } from '../../src/utils/shadow';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useAuthStore } from '../../src/stores/auth-store';
@@ -37,6 +38,7 @@ import {
 import { useThemeColors } from '../../src/hooks/use-theme-colors';
 import { SPACING, FONT_SIZE, FONT_WEIGHT, RADIUS, HIT_SLOP } from '../../src/constants/theme';
 import { SkeletonBox } from '../../src/components/SkeletonBox';
+import { resolveIcon } from '../../src/utils/icons';
 
 // ─── Minimal inline types to avoid workspace resolution issues ────────────────
 
@@ -446,7 +448,7 @@ export default function HomeScreen() {
                     pressed && { opacity: 0.7 },
                   ]}
                   onPress={() =>
-                    router.push(`/transactions/${tx.id}` as never)
+                    router.push(`/add-transaction?id=${tx.id}&type=${tx.type}` as never)
                   }
                 >
                   {/* Category icon */}
@@ -460,10 +462,11 @@ export default function HomeScreen() {
                       },
                     ]}
                   >
-                    <Text style={styles.txIconEmoji}>
-                      {category?.icon ??
-                        (tx.type === 'income' ? '💰' : '💸')}
-                    </Text>
+                    <Ionicons
+                      name={resolveIcon(category?.icon ?? (tx.type === 'income' ? 'income' : 'expense')) as ComponentProps<typeof Ionicons>['name']}
+                      size={22}
+                      color={category?.color ?? colors.textMuted}
+                    />
                   </View>
 
                   {/* Info */}
