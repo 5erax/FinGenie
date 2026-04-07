@@ -156,7 +156,13 @@ export class AuthService {
     });
 
     // Send email
-    await this.email.sendVerificationOtp(user.email, code);
+    try {
+      await this.email.sendVerificationOtp(user.email, code);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to send OTP to ${user.email}: ${message}`);
+      throw new BadRequestException(`Không thể gửi email OTP: ${message}`);
+    }
 
     this.logger.log(`Verification OTP sent to ${user.email}`);
     return { message: "OTP sent successfully" };

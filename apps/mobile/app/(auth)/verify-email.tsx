@@ -68,14 +68,20 @@ export default function VerifyEmailScreen() {
         setOtpSent(true);
         setSuccessMsg('Đã gửi mã OTP đến email của bạn!');
       } catch (err: unknown) {
-        // Show user-friendly message if backend is unreachable
-        const msg = err instanceof Error ? err.message : '';
-        if (msg.includes('Không thể kết nối') || msg.includes('Network')) {
+        // Extract the most useful error message from the response
+        const axiosErr = err as { response?: { data?: { message?: string } }; message?: string };
+        const serverMsg = axiosErr?.response?.data?.message;
+        const clientMsg = err instanceof Error ? err.message : '';
+
+        if (serverMsg) {
+          // Backend returned a specific error (e.g. SMTP not configured)
+          setError(`Lỗi server: ${serverMsg}`);
+        } else if (clientMsg.includes('Không thể kết nối') || clientMsg.includes('Network')) {
           setError('Không thể kết nối tới server. Kiểm tra kết nối mạng.');
         } else {
-          // Not critical on auto-send - user can request manually
-          if (__DEV__) console.warn('Auto-send OTP failed:', msg);
+          setError(`Không thể gửi mã OTP tự động. Nhấn "Gửi mã OTP" để thử lại.\n${clientMsg || ''}`);
         }
+        if (__DEV__) console.warn('Auto-send OTP failed:', err);
       } finally {
         setSendingOtp(false);
       }
@@ -123,11 +129,17 @@ export default function VerifyEmailScreen() {
       setSuccessMsg('Đã gửi mã OTP mới đến email của bạn!');
       otpInputRef.current?.focus();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '';
-      if (message.includes('429') || message.includes('Too Many')) {
+      const axiosErr = err as { response?: { data?: { message?: string }; status?: number }; message?: string };
+      const serverMsg = axiosErr?.response?.data?.message;
+      const status = axiosErr?.response?.status;
+
+      if (status === 429 || serverMsg?.includes('Quá nhiều')) {
         setError('Quá nhiều yêu cầu. Vui lòng đợi vài phút.');
+      } else if (serverMsg) {
+        setError(`Lỗi: ${serverMsg}`);
       } else {
-        setError('Không thể gửi mã OTP. Vui lòng thử lại.');
+        const message = err instanceof Error ? err.message : '';
+        setError(`Không thể gửi mã OTP. ${message}`);
       }
     } finally {
       setSendingOtp(false);

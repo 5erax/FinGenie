@@ -43,6 +43,12 @@ infra/db/generated/
 firebase-debug.log
 .firebase/
 
+# Credentials & keystores (NEVER commit)
+credentials/
+credentials.json
+*.jks
+*.keystore
+
 # Test
 coverage/
 NUL

@@ -332,3 +332,95 @@ export interface AnalyticsOverview {
 export function fetchAnalytics(params?: { period?: string }) {
   return adminFetch<AnalyticsOverview>("/admin/analytics", { params });
 }
+
+// ── Reviews ──
+export interface AdminReview {
+  id: string;
+  rating: number;
+  content: string;
+  status: "pending" | "approved" | "rejected";
+  isFeatured: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+  } | null;
+}
+
+export interface ReviewStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  featured: number;
+  averageRating: number;
+}
+
+export function fetchAdminReviews(params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  isFeatured?: string;
+}) {
+  return adminFetch<PaginatedResponse<AdminReview>>("/admin/reviews", {
+    params,
+  });
+}
+
+export function fetchReviewStats() {
+  return adminFetch<ReviewStats>("/admin/reviews/stats");
+}
+
+export function approveReview(id: string) {
+  return adminFetch<AdminReview>(`/admin/reviews/${id}/approve`, {
+    method: "PATCH",
+  });
+}
+
+export function rejectReview(id: string) {
+  return adminFetch<AdminReview>(`/admin/reviews/${id}/reject`, {
+    method: "PATCH",
+  });
+}
+
+export function featureReview(id: string) {
+  return adminFetch<AdminReview>(`/admin/reviews/${id}/feature`, {
+    method: "PATCH",
+  });
+}
+
+export function unfeatureReview(id: string) {
+  return adminFetch<AdminReview>(`/admin/reviews/${id}/unfeature`, {
+    method: "PATCH",
+  });
+}
+
+// ── User Ban / Restore ──
+export function banUser(id: string) {
+  return adminFetch<{ id: string; status: string }>(`/admin/users/${id}/ban`, {
+    method: "PATCH",
+  });
+}
+
+export function restoreUser(id: string) {
+  return adminFetch<{ id: string; status: string }>(
+    `/admin/users/${id}/restore`,
+    { method: "PATCH" },
+  );
+}
+
+// ── System Info ──
+export interface SystemInfo {
+  api: { status: string; uptime: number };
+  database: { status: string };
+  memory: { heapUsed: number; heapTotal: number; rss: number };
+  node: { version: string };
+  counts: { users: number; transactions: number; reviews: number };
+}
+
+export function fetchSystemInfo() {
+  return adminFetch<SystemInfo>("/admin/system-info");
+}

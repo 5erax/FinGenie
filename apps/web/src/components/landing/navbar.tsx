@@ -8,12 +8,22 @@ import { useEffect, useState } from "react";
 
 const navLinks = [
   { label: "Tính năng", href: "#features" },
-  { label: "Companion", href: "#companion" },
-  { label: "AI Coach", href: "#ai-coach" },
+  { label: "Cách thức", href: "#how-it-works" },
+  { label: "Đánh giá", href: "#testimonials" },
   { label: "Bảng giá", href: "#pricing" },
 ] as const;
 
-export function Navbar() {
+interface NavbarProps {
+  onLoginClick?: () => void;
+  isLoggedIn?: boolean;
+  onPortalClick?: () => void;
+}
+
+export function Navbar({
+  onLoginClick,
+  isLoggedIn,
+  onPortalClick,
+}: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -77,14 +87,28 @@ export function Navbar() {
           <div className="flex items-center gap-2">
             {/* Desktop CTAs */}
             <div className="hidden items-center gap-2 lg:flex">
-              <Link href="/admin/login">
-                <GradientButton variant="ghost" size="sm">
-                  Admin
+              {isLoggedIn ? (
+                <GradientButton
+                  variant="primary"
+                  size="sm"
+                  onClick={onPortalClick}
+                >
+                  Tài khoản
                 </GradientButton>
-              </Link>
-              <GradientButton variant="primary" size="sm">
-                Tải App
-              </GradientButton>
+              ) : (
+                <>
+                  <GradientButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={onLoginClick}
+                  >
+                    Đăng nhập
+                  </GradientButton>
+                  <GradientButton variant="primary" size="sm">
+                    Tải App
+                  </GradientButton>
+                </>
+              )}
             </div>
 
             {/* ── Hamburger button — mobile only ── */}
@@ -158,27 +182,41 @@ export function Navbar() {
 
                 {/* CTAs */}
                 <div className="mt-3 flex flex-col gap-2 px-4">
-                  <Link
-                    href="/admin/login"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="w-full"
-                  >
+                  {isLoggedIn ? (
                     <GradientButton
-                      variant="ghost"
+                      variant="primary"
                       size="sm"
                       className="w-full justify-center"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onPortalClick?.();
+                      }}
                     >
-                      Admin
+                      Tài khoản
                     </GradientButton>
-                  </Link>
-                  <GradientButton
-                    variant="primary"
-                    size="sm"
-                    className="w-full justify-center"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Tải App
-                  </GradientButton>
+                  ) : (
+                    <>
+                      <GradientButton
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-center"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onLoginClick?.();
+                        }}
+                      >
+                        Đăng nhập
+                      </GradientButton>
+                      <GradientButton
+                        variant="primary"
+                        size="sm"
+                        className="w-full justify-center"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Tải App
+                      </GradientButton>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>

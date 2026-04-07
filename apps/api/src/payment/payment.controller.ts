@@ -2,14 +2,12 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
   Post,
   Query,
-  RawBody,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import {
@@ -24,7 +22,7 @@ import { ConfigService } from "@nestjs/config";
 import type { User } from "@prisma/client";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Public } from "../auth/decorators/public.decorator";
-import { StripeService } from "./stripe.service";
+import { PayOSService } from "./payos.service";
 import { SubscriptionService, PLAN_PRICING } from "./subscription.service";
 import { CreatePaymentDto } from "./dto";
 
@@ -35,7 +33,7 @@ export class PaymentController {
   private readonly logger = new Logger(PaymentController.name);
 
   constructor(
-    private readonly stripeService: StripeService,
+    private readonly payosService: PayOSService,
     private readonly subscriptionService: SubscriptionService,
     private readonly config: ConfigService,
   ) {}
@@ -44,24 +42,25 @@ export class PaymentController {
 
   @Post("create-link")
   @ApiOperation({
-    summary: "Create a Stripe Checkout Session for a subscription plan",
+    summary: "Create a PayOS payment link for a subscription plan",
   })
   @ApiCreatedResponse({
-    description: "Checkout session URL and subscription record created",
+    description: "Payment link URL and subscription record created",
   })
   async createPaymentLink(
     @CurrentUser() user: User,
     @Body() dto: CreatePaymentDto,
   ) {
-    if (!this.stripeService.isAvailable) {
+    if (!this.payosService.isAvailable) {
       throw new ServiceUnavailableException(
         "Hệ thống thanh toán hiện không khả dụng. Vui lòng thử lại sau.",
       );
     }
 
     const amount = PLAN_PRICING[dto.plan];
+    const orderCode = this.payosService.generateOrderCode();
 
-    const successUrl =
+    const returnUrl =
       dto.returnUrl ??
       this.config.get<string>("PAYMENT_RETURN_URL") ??
       "fingenie://payment/success";
@@ -71,71 +70,68 @@ export class PaymentController {
       this.config.get<string>("PAYMENT_CANCEL_URL") ??
       "fingenie://payment/cancel";
 
-    // Create Stripe Checkout Session
-    const session = await this.stripeService.createCheckoutSession({
-      amount, // VND is already in smallest unit (no cents)
-      currency: "vnd",
-      description: `FinGenie Premium - ${dto.plan}`,
-      successUrl,
+    // Create PayOS payment link
+    const paymentLink = await this.payosService.createPaymentLink({
+      orderCode,
+      amount,
+      description: `FinGenie ${dto.plan}`,
+      returnUrl,
       cancelUrl,
-      metadata: {
-        userId: user.id,
-        plan: dto.plan,
-      },
     });
 
     // Create subscription + order in our DB
+    // We store orderCode as string in stripeSessionId field for backward compat
     const { subscription, paymentOrder } =
       await this.subscriptionService.createSubscriptionWithOrder({
         userId: user.id,
         plan: dto.plan,
-        stripeSessionId: session.id,
+        stripeSessionId: String(orderCode),
         amount,
       });
 
     return {
-      paymentLink: session.url,
+      paymentLink: paymentLink.checkoutUrl,
+      orderCode,
       subscription,
       order: paymentOrder,
     };
   }
 
   // ─── POST /payments/webhook ───────────────────────────────────────────────
-  // @Public — Stripe calls this without user auth; verify via signature.
+  // @Public — PayOS calls this without user auth; verify via checksum signature.
 
   @Public()
   @Post("webhook")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Stripe webhook receiver (public — no auth required)",
+    summary: "PayOS webhook receiver (public — no auth required)",
   })
   @ApiOkResponse({ description: "Webhook acknowledged" })
-  async handleWebhook(
-    @RawBody() rawBody: Buffer,
-    @Headers("stripe-signature") signature: string,
-  ) {
+  async handleWebhook(@Body() body: unknown) {
     // Persist raw event first for auditability
-    let sessionId = "unknown";
+    const rawBody = body as Record<string, unknown>;
+    const orderCode = String(
+      (rawBody?.data as Record<string, unknown>)?.orderCode ?? "unknown",
+    );
+    const signature = String(rawBody?.signature ?? "");
+
     try {
-      const parsed = JSON.parse(rawBody.toString());
-      sessionId =
-        parsed?.data?.object?.id ?? parsed?.data?.object?.session ?? "unknown";
       await this.subscriptionService.recordWebhookEvent({
-        stripeSessionId: sessionId,
-        payload: parsed,
-        signature: signature ?? "",
+        stripeSessionId: orderCode,
+        payload: rawBody,
+        signature,
       });
     } catch (recordErr) {
       this.logger.error("Failed to record webhook event", recordErr);
     }
 
-    // Verify signature
-    let event;
+    // Verify signature via PayOS SDK
+    let webhookData;
     try {
-      event = this.stripeService.constructWebhookEvent(rawBody, signature);
+      webhookData = this.payosService.verifyWebhook(body);
     } catch (verifyErr) {
       this.logger.error(
-        `Webhook signature verification FAILED for session=${sessionId}`,
+        `Webhook signature verification FAILED for orderCode=${orderCode}`,
         verifyErr,
       );
       return { success: false, error: "Invalid webhook signature" };
@@ -143,16 +139,26 @@ export class PaymentController {
 
     // Process verified webhook
     try {
-      if (event.type === "checkout.session.completed") {
-        const session = event.data.object as { id: string };
-        await this.subscriptionService.activatePremium(session.id);
-      } else if (event.type === "checkout.session.expired") {
-        const session = event.data.object as { id: string };
-        await this.subscriptionService.handlePaymentFailed(session.id);
+      if (webhookData.code === "00") {
+        // Payment successful
+        await this.subscriptionService.activatePremium(
+          String(webhookData.orderCode),
+        );
+        this.logger.log(
+          `Payment successful for orderCode=${webhookData.orderCode}`,
+        );
+      } else {
+        // Payment failed
+        await this.subscriptionService.handlePaymentFailed(
+          String(webhookData.orderCode),
+        );
+        this.logger.log(
+          `Payment failed for orderCode=${webhookData.orderCode}: ${webhookData.desc}`,
+        );
       }
     } catch (processErr) {
       this.logger.error(
-        `Webhook processing error for event=${event.type}`,
+        `Webhook processing error for orderCode=${webhookData.orderCode}`,
         processErr,
       );
     }
@@ -179,37 +185,36 @@ export class PaymentController {
     return { isPremium, premiumUntil, subscription };
   }
 
-  // ─── POST /payments/verify/:sessionId ───────────────────────────────────
+  // ─── POST /payments/verify/:orderCode ───────────────────────────────────
 
-  @Post("verify/:sessionId")
+  @Post("verify/:orderCode")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      "Verify a Stripe checkout session status and activate premium if paid",
+    summary: "Verify a payment status via PayOS and activate premium if paid",
   })
   @ApiOkResponse({
     description:
-      "Returns the payment status after checking with Stripe directly",
+      "Returns the payment status after checking with PayOS directly",
   })
   async verifyPaymentSession(
     @CurrentUser() user: User,
-    @Param("sessionId") sessionId: string,
+    @Param("orderCode") orderCode: string,
   ) {
-    if (!this.stripeService.isAvailable) {
+    if (!this.payosService.isAvailable) {
       throw new ServiceUnavailableException(
         "Hệ thống thanh toán hiện không khả dụng.",
       );
     }
 
     // Verify the order belongs to this user
-    await this.subscriptionService.verifyOrderOwnership(user.id, sessionId);
+    await this.subscriptionService.verifyOrderOwnership(user.id, orderCode);
 
-    // Check Stripe session status directly
-    const session = await this.stripeService.getCheckoutSession(sessionId);
+    // Check PayOS payment status directly
+    const paymentInfo = await this.payosService.getPaymentInfo(orderCode);
 
-    if (session.payment_status === "paid") {
+    if (paymentInfo.status === "PAID") {
       // Activate premium (idempotent — safe to call multiple times)
-      await this.subscriptionService.activatePremium(sessionId);
+      await this.subscriptionService.activatePremium(orderCode);
 
       const { isPremium, premiumUntil } =
         await this.subscriptionService.checkPremiumStatus(user.id);
@@ -222,7 +227,11 @@ export class PaymentController {
       };
     }
 
-    if (session.status === "expired" || session.payment_status === "unpaid") {
+    if (
+      paymentInfo.status === "EXPIRED" ||
+      paymentInfo.status === "CANCELLED"
+    ) {
+      await this.subscriptionService.handlePaymentFailed(orderCode);
       return {
         status: "expired" as const,
         isPremium: false,
@@ -231,7 +240,7 @@ export class PaymentController {
       };
     }
 
-    // Still processing or incomplete
+    // Still processing (PENDING)
     return {
       status: "pending" as const,
       isPremium: false,
@@ -271,27 +280,35 @@ export class PaymentController {
     );
   }
 
-  // ─── POST /payments/:sessionId/cancel ────────────────────────────────────
+  // ─── POST /payments/:orderCode/cancel ────────────────────────────────────
 
-  @Post(":sessionId/cancel")
+  @Post(":orderCode/cancel")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Cancel a pending payment by Stripe session ID" })
+  @ApiOperation({ summary: "Cancel a pending payment by order code" })
   @ApiOkResponse({ description: "Cancellation result" })
   async cancelPayment(
     @CurrentUser() user: User,
-    @Param("sessionId") sessionId: string,
+    @Param("orderCode") orderCode: string,
   ) {
-    if (!this.stripeService.isAvailable) {
+    if (!this.payosService.isAvailable) {
       throw new ServiceUnavailableException(
         "Hệ thống thanh toán hiện không khả dụng. Vui lòng thử lại sau.",
       );
     }
+
     // Verify the order belongs to this user
-    await this.subscriptionService.verifyOrderOwnership(user.id, sessionId);
-    // Expire the Stripe checkout session
-    const session = await this.stripeService.getCheckoutSession(sessionId);
+    await this.subscriptionService.verifyOrderOwnership(user.id, orderCode);
+
+    // Cancel via PayOS
+    try {
+      await this.payosService.cancelPaymentLink(orderCode);
+    } catch (err) {
+      this.logger.warn(`PayOS cancel failed for orderCode=${orderCode}`, err);
+    }
+
     // Mark as failed in our DB
-    await this.subscriptionService.handlePaymentFailed(sessionId);
-    return { status: "cancelled", sessionId: session.id };
+    await this.subscriptionService.handlePaymentFailed(orderCode);
+
+    return { status: "cancelled", orderCode };
   }
 }

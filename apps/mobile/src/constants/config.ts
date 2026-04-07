@@ -21,6 +21,11 @@ export const FIREBASE_CONFIG = {
 export const GOOGLE_WEB_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
 
+// Android client ID with SHA-1 fingerprint for native Google Sign-In
+// Created in Google Cloud Console → Credentials → OAuth 2.0 → Android
+export const GOOGLE_ANDROID_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? "";
+
 // App Constants
 export const APP_NAME = "FinGenie";
 export const APP_VERSION = "0.1.0";

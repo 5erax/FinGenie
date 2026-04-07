@@ -410,15 +410,13 @@ function CategoryRow({
       {/* Actions */}
       <td className="py-4 pl-3 pr-6">
         <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          {cat.isDefault && (
-            <button
-              onClick={() => onEdit(cat)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/8 hover:text-zinc-300"
-              title="Chỉnh sửa"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            onClick={() => onEdit(cat)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/8 hover:text-zinc-300"
+            title="Chỉnh sửa"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
           {canDelete ? (
             <button
               onClick={() => onDelete(cat)}
@@ -429,7 +427,7 @@ function CategoryRow({
             </button>
           ) : (
             /* Tooltip hint for non-deleteable rows */
-            txCount > 0 && cat.isDefault ? (
+            txCount > 0 ? (
               <button
                 disabled
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-700"
@@ -554,7 +552,7 @@ export default function CategoriesPage() {
   };
 
   const canDeleteCategory = (cat: AdminCategory) =>
-    cat.isDefault && (cat._count?.transactions ?? 0) === 0;
+    (cat._count?.transactions ?? 0) === 0;
 
   return (
     <div className="p-8">
@@ -738,9 +736,8 @@ export default function CategoriesPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          * Chỉ danh mục{" "}
-          <span className="text-primary-500/70">Hệ thống</span> có thể chỉnh
-          sửa. Xóa chỉ khả dụng khi chưa có giao dịch nào.
+          * Tất cả danh mục có thể chỉnh sửa. Xóa chỉ khả dụng khi chưa có
+          giao dịch nào.
         </motion.p>
       )}
 

@@ -258,4 +258,100 @@ export class AdminController {
   async getAnalytics(@Query("period") period?: string) {
     return this.adminService.getAnalytics(period);
   }
+
+  // ── Reviews ───────────────────────────────────────────────
+
+  @Get("reviews")
+  @ApiOperation({ summary: "List all reviews (admin)" })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: ["pending", "approved", "rejected"],
+  })
+  @ApiQuery({ name: "isFeatured", required: false })
+  @ApiOkResponse({ description: "Paginated review list" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async listReviews(
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("status") status?: string,
+    @Query("isFeatured") isFeatured?: string,
+  ) {
+    return this.adminService.findAllReviews({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      status,
+      isFeatured,
+    });
+  }
+
+  @Get("reviews/stats")
+  @ApiOperation({ summary: "Get review statistics (admin)" })
+  @ApiOkResponse({ description: "Review stats" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async getReviewStats() {
+    return this.adminService.getReviewStats();
+  }
+
+  @Patch("reviews/:id/approve")
+  @ApiOperation({ summary: "Approve a review (admin)" })
+  @ApiOkResponse({ description: "Review approved" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async approveReview(@Param("id") id: string) {
+    return this.adminService.updateReviewStatus(id, "approved");
+  }
+
+  @Patch("reviews/:id/reject")
+  @ApiOperation({ summary: "Reject a review (admin)" })
+  @ApiOkResponse({ description: "Review rejected" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async rejectReview(@Param("id") id: string) {
+    return this.adminService.updateReviewStatus(id, "rejected");
+  }
+
+  @Patch("reviews/:id/feature")
+  @ApiOperation({ summary: "Feature a review (admin)" })
+  @ApiOkResponse({ description: "Review featured" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async featureReview(@Param("id") id: string) {
+    return this.adminService.toggleReviewFeatured(id, true);
+  }
+
+  @Patch("reviews/:id/unfeature")
+  @ApiOperation({ summary: "Unfeature a review (admin)" })
+  @ApiOkResponse({ description: "Review unfeatured" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async unfeatureReview(@Param("id") id: string) {
+    return this.adminService.toggleReviewFeatured(id, false);
+  }
+
+  // ── User Ban / Restore ────────────────────────────────────
+
+  @Patch("users/:id/ban")
+  @ApiOperation({ summary: "Ban a user (admin)" })
+  @ApiOkResponse({ description: "User banned" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async banUser(@Param("id") id: string) {
+    return this.adminService.banUser(id);
+  }
+
+  @Patch("users/:id/restore")
+  @ApiOperation({ summary: "Restore a banned user (admin)" })
+  @ApiOkResponse({ description: "User restored" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async restoreUser(@Param("id") id: string) {
+    return this.adminService.restoreUser(id);
+  }
+
+  // ── System Info ───────────────────────────────────────────
+
+  @Get("system-info")
+  @ApiOperation({ summary: "Get system health info (admin)" })
+  @ApiOkResponse({ description: "System health data" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async getSystemInfo() {
+    return this.adminService.getSystemInfo();
+  }
 }

@@ -7,9 +7,10 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../../src/lib/firebase';
-import { GOOGLE_WEB_CLIENT_ID } from '../../src/constants/config';
+import { GOOGLE_WEB_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID } from '../../src/constants/config';
 import { useThemeColors } from '../../src/hooks/use-theme-colors';
 import { SPACING, FONT_SIZE, FONT_WEIGHT, RADIUS } from '../../src/constants/theme';
+import { FinGenieLogo } from '../../src/components/FinGenieLogo';
 
 // Dismiss any lingering browser auth sessions
 WebBrowser.maybeCompleteAuthSession();
@@ -23,6 +24,7 @@ export default function LoginScreen() {
   const [googleRequest, googleResponse, promptGoogleAsync] =
     Google.useIdTokenAuthRequest({
       clientId: GOOGLE_WEB_CLIENT_ID,
+      androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
     });
 
   // Log redirect URI in dev so user can register it in Google Cloud Console
@@ -115,11 +117,7 @@ export default function LoginScreen() {
       <View style={styles.content}>
         {/* Logo Area */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoEmoji}>💰</Text>
-          <Text style={[styles.appName, { color: colors.textPrimary }]}>FinGenie</Text>
-          <Text style={[styles.tagline, { color: colors.textMuted }]}>
-            Quản lý tài chính thông minh{'\n'}cho thế hệ Gen Z
-          </Text>
+          <FinGenieLogo size="sm" showTagline />
         </View>
 
         {/* Auth Buttons */}
@@ -216,21 +214,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: SPACING.huge,
-  },
-  logoEmoji: {
-    fontSize: 56,
-    marginBottom: SPACING.base,
-  },
-  appName: {
-    fontSize: FONT_SIZE.h1,
-    fontWeight: FONT_WEIGHT.extrabold,
-    letterSpacing: -0.5,
-    marginBottom: SPACING.sm,
-  },
-  tagline: {
-    fontSize: FONT_SIZE.body,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   authSection: {
     gap: SPACING.md,

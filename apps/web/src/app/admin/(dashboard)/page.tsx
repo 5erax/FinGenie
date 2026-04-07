@@ -9,19 +9,33 @@ import {
   CreditCard,
   BarChart3,
   Activity,
+  Star,
+  Clock,
 } from "lucide-react";
 import { StatCard } from "@/components/admin/stat-card";
 import { PageHeader } from "@/components/admin/page-header";
-import { fetchDashboardStats, type DashboardStats } from "@/lib/admin-api";
+import {
+  fetchDashboardStats,
+  fetchReviewStats,
+  type DashboardStats,
+  type ReviewStats,
+} from "@/lib/admin-api";
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDashboardStats()
-      .then(setStats)
+    Promise.all([
+      fetchDashboardStats(),
+      fetchReviewStats().catch(() => null),
+    ])
+      .then(([dashData, revData]) => {
+        setStats(dashData);
+        if (revData) setReviewStats(revData);
+      })
       .catch((err) => {
         console.error("Failed to fetch stats:", err);
         setApiError(
@@ -46,7 +60,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Stat Cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard
           title="Tổng người dùng"
           value={loading ? "..." : (stats?.totalUsers ?? 0)}
@@ -70,6 +84,19 @@ export default function AdminDashboardPage() {
           value={loading ? "..." : (stats?.activeSubscriptions ?? 0)}
           icon={CreditCard}
           delay={0.3}
+        />
+        <StatCard
+          title="Đánh giá"
+          value={loading ? "..." : (reviewStats?.total ?? 0)}
+          icon={Star}
+          trend={reviewStats?.averageRating ? `${reviewStats.averageRating.toFixed(1)} / 5 ★` : undefined}
+          delay={0.4}
+        />
+        <StatCard
+          title="Chờ duyệt"
+          value={loading ? "..." : (reviewStats?.pending ?? 0)}
+          icon={Clock}
+          delay={0.5}
         />
       </div>
 

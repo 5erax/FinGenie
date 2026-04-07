@@ -9,6 +9,7 @@ export interface CreatePaymentDto {
 
 export interface PaymentLink {
   paymentLink: string;
+  orderCode: number;
   subscription: Subscription;
   order: PaymentOrder;
 }
@@ -52,12 +53,12 @@ export const paymentService = {
   },
 
   /**
-   * Verify a checkout session with Stripe directly.
+   * Verify a payment with PayOS directly.
    * If paid, activates premium on the backend.
    */
-  async verifySession(stripeSessionId: string): Promise<VerifyPaymentResponse> {
+  async verifyPayment(orderCode: string): Promise<VerifyPaymentResponse> {
     const response = await api.post<VerifyPaymentResponse>(
-      `/payments/verify/${stripeSessionId}`,
+      `/payments/verify/${orderCode}`,
     );
     return response.data;
   },

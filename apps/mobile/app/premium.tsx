@@ -191,10 +191,10 @@ export default function PremiumScreen() {
         returnUrl,
       );
 
-      // After returning from the browser, verify the payment status with Stripe
+      // After returning from the browser, verify the payment status with PayOS
       setVerifying(true);
       try {
-        const verification = await verifyPayment(result.order.stripeSessionId);
+        const verification = await verifyPayment(String(result.orderCode));
 
         if (verification.status === "success") {
           Alert.alert(
@@ -253,7 +253,9 @@ export default function PremiumScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await cancelPayment(latestOrder.stripeSessionId);
+              await cancelPayment(
+                latestOrder.stripeSessionId ?? latestOrder.id,
+              );
               Alert.alert(
                 "Đã gửi yêu cầu huỷ",
                 "Đăng ký của bạn sẽ được huỷ vào cuối kỳ thanh toán.",
@@ -675,7 +677,7 @@ export default function PremiumScreen() {
         />
 
         <Text style={[styles.ctaHint, { color: colors.textMuted }]}>
-          Thanh toán an toàn qua Stripe · Có thể huỷ bất cứ lúc nào
+          Thanh toán an toàn qua PayOS · Có thể huỷ bất cứ lúc nào
         </Text>
 
         {/* Payment History */}

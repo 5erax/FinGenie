@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Star,
+  Server,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -57,7 +59,12 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { label: "Gamification", href: "/admin/gamification", icon: Gamepad2 },
       { label: "AI Chat", href: "/admin/ai-chat", icon: MessageSquare },
+      { label: "Đánh giá", href: "/admin/reviews", icon: Star },
     ],
+  },
+  {
+    title: "Hệ thống",
+    items: [{ label: "System", href: "/admin/system", icon: Server }],
   },
 ];
 

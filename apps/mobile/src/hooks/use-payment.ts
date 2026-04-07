@@ -58,8 +58,7 @@ export function useCancelPayment() {
 export function useVerifyPayment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (stripeSessionId: string) =>
-      paymentService.verifySession(stripeSessionId),
+    mutationFn: (orderCode: string) => paymentService.verifyPayment(orderCode),
     onSuccess: () => {
       // Refresh payment status and history after verification
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });

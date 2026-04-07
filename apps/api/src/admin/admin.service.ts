@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { Prisma } from "@prisma/client";
+import { Prisma, ReviewStatus } from "@prisma/client";
 
 @Injectable()
 export class AdminService {
@@ -528,5 +528,203 @@ export class AdminService {
       count: Number(r.count),
       total: Number(r.total),
     }));
+  }
+
+  // ── Reviews ─────────────────────────────────────────────
+
+  async findAllReviews(params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    isFeatured?: string;
+  }) {
+    const { page = 1, limit = 20, status, isFeatured } = params;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ReviewWhereInput = {};
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      where.status = status as ReviewStatus;
+    }
+    if (isFeatured === "true") where.isFeatured = true;
+    else if (isFeatured === "false") where.isFeatured = false;
+
+    const [reviews, total] = await this.prisma.$transaction([
+      this.prisma.review.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          rating: true,
+          content: true,
+          status: true,
+          isFeatured: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      }),
+      this.prisma.review.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: reviews.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  async getReviewStats() {
+    const [total, pending, approved, rejected, featured, avgResult] =
+      await this.prisma.$transaction([
+        this.prisma.review.count(),
+        this.prisma.review.count({ where: { status: "pending" } }),
+        this.prisma.review.count({ where: { status: "approved" } }),
+        this.prisma.review.count({ where: { status: "rejected" } }),
+        this.prisma.review.count({ where: { isFeatured: true } }),
+        this.prisma.review.aggregate({ _avg: { rating: true } }),
+      ]);
+
+    return {
+      total,
+      pending,
+      approved,
+      rejected,
+      featured,
+      averageRating: avgResult._avg.rating ?? 0,
+    };
+  }
+
+  async updateReviewStatus(id: string, status: ReviewStatus) {
+    const existing = await this.prisma.review.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Review not found");
+
+    return this.prisma.review.update({
+      where: { id },
+      data: { status },
+      select: {
+        id: true,
+        rating: true,
+        content: true,
+        status: true,
+        isFeatured: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+        },
+      },
+    });
+  }
+
+  async toggleReviewFeatured(id: string, isFeatured: boolean) {
+    const existing = await this.prisma.review.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException("Review not found");
+
+    return this.prisma.review.update({
+      where: { id },
+      data: { isFeatured },
+      select: {
+        id: true,
+        rating: true,
+        content: true,
+        status: true,
+        isFeatured: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+        },
+      },
+    });
+  }
+
+  // ── User Ban / Restore ────────────────────────────────────
+
+  async banUser(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException("User not found");
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: "banned" },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        status: true,
+      },
+    });
+  }
+
+  async restoreUser(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException("User not found");
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: "active" },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        status: true,
+      },
+    });
+  }
+
+  // ── System Info ───────────────────────────────────────────
+
+  async getSystemInfo() {
+    const mem = process.memoryUsage();
+    const uptime = process.uptime();
+
+    // Check DB connectivity
+    let dbStatus = "ok";
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      dbStatus = "error";
+    }
+
+    // Get counts for overview
+    const [userCount, transactionCount, reviewCount] =
+      await this.prisma.$transaction([
+        this.prisma.user.count(),
+        this.prisma.transaction.count(),
+        this.prisma.review.count(),
+      ]);
+
+    return {
+      api: { status: "ok", uptime: Math.floor(uptime) },
+      database: { status: dbStatus },
+      memory: {
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+        rss: Math.round(mem.rss / 1024 / 1024),
+      },
+      node: { version: process.version },
+      counts: {
+        users: userCount,
+        transactions: transactionCount,
+        reviews: reviewCount,
+      },
+    };
   }
 }

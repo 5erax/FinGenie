@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import {
   View,
   ActivityIndicator,
-  Text,
   StyleSheet,
   LogBox,
   Platform,
@@ -16,8 +15,9 @@ import { useAuthStore } from "../src/stores/auth-store";
 import { usePreferencesStore } from "../src/stores/preferences-store";
 import { useNotifications } from "../src/hooks/use-notifications";
 import { ErrorBoundary } from "../src/components/error-boundary";
+import { FinGenieLogo } from "../src/components/FinGenieLogo";
 import { useThemeColors, useIsDarkTheme } from "../src/hooks/use-theme-colors";
-import { SPACING, FONT_SIZE, FONT_WEIGHT } from "../src/constants/theme";
+import { SPACING } from "../src/constants/theme";
 
 // Suppress known non-actionable warnings from React Navigation/RN Web internals
 if (Platform.OS === "web") {
@@ -33,10 +33,7 @@ function SplashScreen() {
     <View
       style={[splashStyles.container, { backgroundColor: colors.background }]}
     >
-      <Text style={splashStyles.logo}>✨</Text>
-      <Text style={[splashStyles.title, { color: colors.textPrimary }]}>
-        FinGenie
-      </Text>
+      <FinGenieLogo size="lg" />
       <ActivityIndicator
         size="large"
         color={colors.accent}
@@ -52,14 +49,7 @@ const splashStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  logo: { fontSize: FONT_SIZE.display, marginBottom: SPACING.md },
-  title: {
-    fontSize: FONT_SIZE.h2,
-    fontWeight: FONT_WEIGHT.extrabold,
-    letterSpacing: -0.5,
-    marginBottom: SPACING.xl,
-  },
-  spinner: { marginTop: SPACING.sm },
+  spinner: { marginTop: SPACING.xxl },
 });
 
 export default function RootLayout() {

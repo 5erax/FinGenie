@@ -107,6 +107,17 @@ enum TaskStatus {
   expired
 }
 
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum UserStatus {
+  active
+  banned
+}
+
 // ─────────────────────────────────────
 // Models
 // ─────────────────────────────────────
@@ -117,8 +128,9 @@ model User {
   phone         String?   @unique
   displayName   String
   avatarUrl     String?
-  role          UserRole  @default(user)
-  emailVerified Boolean   @default(false)
+  role          UserRole   @default(user)
+  status        UserStatus @default(active)
+  emailVerified Boolean    @default(false)
   premiumUntil  DateTime?
 
   // Firebase Auth UID for linking
@@ -143,6 +155,7 @@ model User {
   dailyTasks       DailyTask[]
   achievements     UserAchievement[]
   streak           UserStreak?
+  reviews          Review[]
 
   @@map("users")
 }
@@ -495,4 +508,27 @@ model UserAchievement {
   @@unique([userId, achievementId])
   @@index([userId])
   @@map("user_achievements")
+}
+
+// ─────────────────────────────────────
+// Reviews
+// ─────────────────────────────────────
+
+model Review {
+  id         String       @id @default(cuid())
+  userId     String
+  rating     Int          // 1–5
+  content    String
+  status     ReviewStatus @default(pending)
+  isFeatured Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([status])
+  @@map("reviews")
 }
