@@ -103,7 +103,8 @@ export const aiChatService = {
 
   /**
    * Send a message and stream the AI response via SSE.
-   * Uses native fetch (not axios) to consume the text/event-stream.
+   * Uses native fetch to consume the text/event-stream on web.
+   * Falls back to non-streaming endpoint on native (ReadableStream unsupported).
    * Calls `onEvent` for each parsed SSE event.
    * Returns an AbortController so the caller can cancel the stream.
    */
@@ -115,7 +116,7 @@ export const aiChatService = {
   ): AbortController {
     const controller = new AbortController();
 
-    const run = async () => {
+    const runStreaming = async () => {
       const token = getAuthToken();
       const url = `${API_BASE_URL}/ai-chat/sessions/${sessionId}/messages/stream`;
 
@@ -135,6 +136,7 @@ export const aiChatService = {
 
       const reader = response.body?.getReader();
       if (!reader) {
+        // ReadableStream not supported (React Native) — fall back to non-streaming
         throw new Error("ReadableStream not supported");
       }
 
@@ -172,10 +174,33 @@ export const aiChatService = {
       }
     };
 
-    run().catch((err: unknown) => {
-      if ((err as Error).name === "AbortError") return; // cancelled by user
-      onError?.(err instanceof Error ? err : new Error(String(err)));
-    });
+    /**
+     * Fallback: use the non-streaming endpoint and simulate stream events.
+     * This works on all platforms (React Native included).
+     */
+    const runFallback = async () => {
+      const result = await aiChatService.sendMessage(sessionId, content);
+
+      // Emit events in the same order as the streaming endpoint
+      onEvent({ type: "user_message", userMessage: result.userMessage });
+      onEvent({ type: "chunk", content: result.assistantMessage.content });
+      onEvent({
+        type: "done",
+        assistantMessage: result.assistantMessage,
+      });
+    };
+
+    runStreaming()
+      .catch((err: unknown) => {
+        if ((err as Error).name === "AbortError") return;
+
+        // If streaming failed (e.g. ReadableStream not supported), try non-streaming
+        return runFallback();
+      })
+      .catch((err: unknown) => {
+        if ((err as Error).name === "AbortError") return;
+        onError?.(err instanceof Error ? err : new Error(String(err)));
+      });
 
     return controller;
   },

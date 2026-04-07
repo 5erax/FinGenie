@@ -245,7 +245,7 @@ export default function AiCoachScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // Queries
-  const { data: status } = useAIStatus();
+  const { data: status, error: statusError } = useAIStatus();
   const { data: sessionsData, refetch: refetchSessions } = useAISessions();
   const {
     data: sessionData,
@@ -430,7 +430,17 @@ export default function AiCoachScreen() {
         <View style={[styles.statusBar, { backgroundColor: "#7f1d1d" }]}>
           <Ionicons name="warning-outline" size={ICON_SIZE.xs} color="#fca5a5" />
           <Text style={[styles.statusText, { color: "#fca5a5" }]}>
-            AI Coach hiện không khả dụng. Vui lòng thử lại sau.
+            {status.unavailableReason ?? "AI Coach hiện không khả dụng. Vui lòng thử lại sau."}
+          </Text>
+        </View>
+      )}
+
+      {/* Backend connectivity error */}
+      {!status && statusError && (
+        <View style={[styles.statusBar, { backgroundColor: "#7f1d1d" }]}>
+          <Ionicons name="cloud-offline-outline" size={ICON_SIZE.xs} color="#fca5a5" />
+          <Text style={[styles.statusText, { color: "#fca5a5" }]}>
+            Không thể kết nối tới server. Kiểm tra kết nối mạng và backend.
           </Text>
         </View>
       )}

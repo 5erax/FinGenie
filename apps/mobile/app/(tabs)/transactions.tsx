@@ -566,6 +566,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     gap: SPACING.sm,
     paddingBottom: SPACING.base,
+    alignItems: 'center',
   },
   filterChip: {
     paddingHorizontal: SPACING.base,

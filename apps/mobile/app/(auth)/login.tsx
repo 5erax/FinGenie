@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import * as AuthSession from 'expo-auth-session';
+import { useState, useEffect } from 'react';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../../src/lib/firebase';
@@ -19,55 +19,77 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const colors = useThemeColors();
 
+  // Google OAuth via expo-auth-session (handles redirect URIs correctly per platform)
+  const [googleRequest, googleResponse, promptGoogleAsync] =
+    Google.useIdTokenAuthRequest({
+      clientId: GOOGLE_WEB_CLIENT_ID,
+    });
+
+  // Log redirect URI in dev so user can register it in Google Cloud Console
+  useEffect(() => {
+    if (__DEV__ && googleRequest?.redirectUri) {
+      console.log(
+        '[Google Auth] Redirect URI to register in Google Cloud Console:',
+        googleRequest.redirectUri,
+      );
+    }
+  }, [googleRequest?.redirectUri]);
+
+  // Handle Google OAuth response from native flow
+  useEffect(() => {
+    if (!googleResponse) return;
+
+    if (googleResponse.type === 'success') {
+      const idToken = googleResponse.params.id_token;
+      if (idToken) {
+        const credential = GoogleAuthProvider.credential(idToken);
+        signInWithCredential(auth, credential).catch((err: unknown) => {
+          if (__DEV__) console.error('Google credential error:', err);
+          setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
+          setLoading(null);
+        });
+        // onAuthStateChanged in initialize() handles loginToBackend + redirect
+      } else {
+        setError('Không nhận được token từ Google. Vui lòng thử lại.');
+        setLoading(null);
+      }
+    } else if (googleResponse.type === 'error') {
+      if (__DEV__) console.error('Google auth error:', googleResponse.error);
+      const msg = googleResponse.error?.message ?? '';
+      if (msg.includes('redirect_uri_mismatch')) {
+        setError(
+          'Redirect URI chưa được đăng ký trong Google Cloud Console. ' +
+            'Xem console log để biết URI cần thêm.',
+        );
+      } else {
+        setError(msg || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
+      }
+      setLoading(null);
+    } else {
+      // dismiss / cancel
+      setLoading(null);
+    }
+  }, [googleResponse]);
+
   const handleGoogleLogin = async () => {
     setLoading('google');
     setError(null);
     try {
       if (Platform.OS === 'web') {
-        // Web (dev + prod): use Firebase signInWithPopup
+        // Web: use Firebase signInWithPopup directly
         const { signInWithPopup, GoogleAuthProvider: GAP } = await import('firebase/auth');
         const provider = new GAP();
         await signInWithPopup(auth, provider);
       } else {
-        // Native (iOS/Android): imperative Google OAuth via browser
+        // Native: use expo-auth-session Google provider
         if (!GOOGLE_WEB_CLIENT_ID) {
           setError('Google Sign-In chưa được cấu hình. Thiếu EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.');
           setLoading(null);
           return;
         }
-
-        const redirectUri = AuthSession.makeRedirectUri({ preferLocalhost: false });
-        const authUrl =
-          'https://accounts.google.com/o/oauth2/v2/auth?' +
-          `client_id=${encodeURIComponent(GOOGLE_WEB_CLIENT_ID)}&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          'response_type=id_token&' +
-          `scope=${encodeURIComponent('openid email profile')}&` +
-          `nonce=${Math.random().toString(36).substring(2)}`;
-
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-
-        if (result.type === 'success' && result.url) {
-          // Extract id_token from URL fragment (#id_token=xxx)
-          const fragment = result.url.split('#')[1] ?? '';
-          const params = new URLSearchParams(fragment);
-          const idToken = params.get('id_token');
-
-          if (idToken) {
-            const credential = GoogleAuthProvider.credential(idToken);
-            await signInWithCredential(auth, credential);
-            // onAuthStateChanged handles loginToBackend + redirect
-          } else {
-            setError('Không nhận được token từ Google. Vui lòng thử lại.');
-            setLoading(null);
-          }
-        } else {
-          // User cancelled or dismissed
-          setLoading(null);
-        }
-        return;
+        // promptGoogleAsync triggers the OAuth flow; response is handled in useEffect above
+        await promptGoogleAsync();
       }
-      // onAuthStateChanged in initialize() handles loginToBackend + redirect
     } catch (err: unknown) {
       if (__DEV__) console.error('Google login error:', err);
       const message = err instanceof Error ? err.message : '';

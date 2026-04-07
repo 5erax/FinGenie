@@ -20,13 +20,27 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.fingenie.vn/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://fingenie-production.up.railway.app/api/v1",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCGqIOvnpw3CPpQfhz6UDVn3SzCxy8y2tM",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "fingenie-60788.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "fingenie-60788",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "fingenie-60788.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "138677191377",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:138677191377:web:fa22c5d3fab08312cffbf0",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "138677191377-n1pjtd8r1j6j9kbgjqjsdn9jpcaq9avg.apps.googleusercontent.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.fingenie.vn/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://fingenie-production.up.railway.app/api/v1",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCGqIOvnpw3CPpQfhz6UDVn3SzCxy8y2tM",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "fingenie-60788.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "fingenie-60788",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "fingenie-60788.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "138677191377",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:138677191377:web:fa22c5d3fab08312cffbf0",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "138677191377-n1pjtd8r1j6j9kbgjqjsdn9jpcaq9avg.apps.googleusercontent.com"
       }
     }
   },
@@ -35,11 +49,6 @@
       "android": {
         "serviceAccountKeyPath": "./google-services.json",
         "track": "internal"
-      },
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
       }
     }
   }

@@ -59,25 +59,22 @@ export default function PhoneOTPScreen() {
         setResendCooldown(RESEND_COOLDOWN_SECONDS);
       } else {
         // Native (iOS/Android): Firebase JS SDK phone auth requires RecaptchaVerifier
-        // which needs a DOM. On native, try signInWithPhoneNumber without it.
-        try {
-          const result = await signInWithPhoneNumber(auth, phone);
-          setConfirmationResult(result);
-          setStep('otp');
-          setResendCooldown(RESEND_COOLDOWN_SECONDS);
-        } catch (nativeErr: unknown) {
-          console.error('Native phone auth error:', nativeErr);
-          if (__DEV__) {
-            // Dev fallback: allow testing OTP flow with code 123456
-            setStep('otp');
-            setResendCooldown(RESEND_COOLDOWN_SECONDS);
-          } else {
-            setError(
-              'Xác thực số điện thoại trên ứng dụng native cần cấu hình thêm. ' +
-              'Vui lòng sử dụng phiên bản web hoặc đăng nhập bằng Google.'
-            );
-          }
-        }
+        // which needs a browser DOM — this does NOT work on React Native.
+        //
+        // To enable phone auth on native, you need one of:
+        // 1. @react-native-firebase/auth (requires custom dev build, not Expo Go)
+        // 2. A backend SMS OTP service (Twilio, Firebase Admin, etc.)
+        //
+        // For now, show a clear message directing users to other auth methods.
+        setError(
+          'Đăng nhập bằng số điện thoại hiện chỉ hỗ trợ trên phiên bản web.\n\n' +
+          'Vui lòng sử dụng:\n' +
+          '• Đăng nhập với Google\n' +
+          '• Đăng nhập bằng Email\n\n' +
+          'Hoặc truy cập phiên bản web để đăng nhập bằng SĐT.'
+        );
+        setLoading(false);
+        return;
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Không thể gửi mã OTP';

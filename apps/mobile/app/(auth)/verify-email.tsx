@@ -67,9 +67,15 @@ export default function VerifyEmailScreen() {
         await sendVerificationOtp();
         setOtpSent(true);
         setSuccessMsg('Đã gửi mã OTP đến email của bạn!');
-      } catch {
-        // Not critical - user can request manually
-        if (__DEV__) console.warn('Auto-send OTP failed');
+      } catch (err: unknown) {
+        // Show user-friendly message if backend is unreachable
+        const msg = err instanceof Error ? err.message : '';
+        if (msg.includes('Không thể kết nối') || msg.includes('Network')) {
+          setError('Không thể kết nối tới server. Kiểm tra kết nối mạng.');
+        } else {
+          // Not critical on auto-send - user can request manually
+          if (__DEV__) console.warn('Auto-send OTP failed:', msg);
+        }
       } finally {
         setSendingOtp(false);
       }

@@ -48,3 +48,5 @@ coverage/
 NUL
 nul
 .playwright-mcp/
+
+.vercel

@@ -53,6 +53,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    // Network/connectivity error — provide clear message
+    if (!error.response) {
+      if (__DEV__) {
+        console.error(
+          `[API] Không thể kết nối tới backend: ${API_BASE_URL}`,
+          error.message,
+        );
+      }
+      const connectError = new Error(
+        `Không thể kết nối tới server. Kiểm tra backend đang chạy tại ${API_BASE_URL}`,
+      );
+      (connectError as Error & { isNetworkError: boolean }).isNetworkError =
+        true;
+      return Promise.reject(connectError);
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
@@ -100,3 +116,24 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+/**
+ * Check if the backend API is reachable.
+ * Useful for debugging connectivity issues.
+ */
+export async function checkApiHealth(): Promise<{
+  ok: boolean;
+  url: string;
+  error?: string;
+}> {
+  try {
+    await axios.get(`${API_BASE_URL}/../health`, { timeout: 5000 });
+    return { ok: true, url: API_BASE_URL };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (__DEV__) {
+      console.warn(`[API Health] Backend unreachable at ${API_BASE_URL}:`, msg);
+    }
+    return { ok: false, url: API_BASE_URL, error: msg };
+  }
+}
