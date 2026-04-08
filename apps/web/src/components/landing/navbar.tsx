@@ -93,7 +93,7 @@ export function Navbar({
                   size="sm"
                   onClick={onPortalClick}
                 >
-                  Tài khoản
+                  Dashboard
                 </GradientButton>
               ) : (
                 <>
@@ -192,7 +192,7 @@ export function Navbar({
                         onPortalClick?.();
                       }}
                     >
-                      Tài khoản
+                      Dashboard
                     </GradientButton>
                   ) : (
                     <>

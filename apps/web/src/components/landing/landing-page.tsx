@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/landing/navbar";
@@ -15,19 +16,18 @@ import { AiSection } from "@/components/landing/ai-section";
 import { PricingSection } from "@/components/landing/pricing-section";
 import { CtaSection } from "@/components/landing/cta-section";
 import { AuthModal } from "@/components/landing/auth-modal";
-import { UserPortal } from "@/components/landing/user-portal";
 
 export function LandingPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showPortal, setShowPortal] = useState(false);
 
   return (
     <>
       <Navbar
         onLoginClick={() => setShowAuthModal(true)}
         isLoggedIn={!!user}
-        onPortalClick={() => setShowPortal(true)}
+        onPortalClick={() => router.push("/dashboard")}
       />
       <HorizontalScroll>
         <HeroSection />
@@ -47,16 +47,9 @@ export function LandingPage() {
         onClose={() => setShowAuthModal(false)}
         onLoginSuccess={() => {
           setShowAuthModal(false);
-          setShowPortal(true);
+          router.push("/dashboard");
         }}
       />
-
-      {/* User Portal */}
-      <AnimatePresence>
-        {showPortal && user && (
-          <UserPortal onClose={() => setShowPortal(false)} />
-        )}
-      </AnimatePresence>
     </>
   );
 }

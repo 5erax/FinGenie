@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from "react";
 import {
@@ -15,37 +16,163 @@ import {
 } from "firebase/auth";
 import { auth } from "./firebase";
 
+// ── API base URL ────────────────────────────────────────────────────────────
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://fingenie-production.up.railway.app/api/v1";
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+export interface BackendUser {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  role: "user" | "admin";
+  premiumUntil: string | null;
+}
+
 interface AuthState {
   user: User | null;
+  backendUser: BackendUser | null;
   loading: boolean;
   error: string | null;
 }
 
 interface AuthContextValue extends AuthState {
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<BackendUser>;
   signOut: () => Promise<void>;
+  syncBackendUser: () => Promise<BackendUser | null>;
 }
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Call POST /auth/login with Firebase ID token to sync user to backend DB. */
+async function loginToBackend(
+  idToken: string,
+): Promise<{ user: BackendUser; isNewUser: boolean; emailVerified: boolean }> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      (body as { message?: string }).message ??
+        `Backend login failed (${res.status})`,
+    );
+  }
+
+  return res.json() as Promise<{
+    user: BackendUser;
+    isNewUser: boolean;
+    emailVerified: boolean;
+  }>;
+}
+
+/** Call GET /auth/me with Firebase ID token. */
+async function fetchMe(idToken: string): Promise<BackendUser> {
+  const res = await fetch(`${API_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch user profile (${res.status})`);
+  }
+
+  return res.json() as Promise<BackendUser>;
+}
+
+// ── Context ─────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
+    backendUser: null,
     loading: true,
     error: null,
   });
 
+  /** Sync current Firebase user with backend. Returns BackendUser or null. */
+  const syncBackendUser = useCallback(async (): Promise<BackendUser | null> => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return null;
+
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const { user: backendUser } = await loginToBackend(idToken);
+      setState((prev) => ({ ...prev, backendUser }));
+      return backendUser;
+    } catch {
+      // Silently fail — user is still Firebase-authenticated
+      return null;
+    }
+  }, []);
+
+  // Listen to Firebase auth state changes and auto-sync with backend
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setState({ user, loading: false, error: null });
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          const { user: backendUser } = await loginToBackend(idToken);
+          setState({
+            user: firebaseUser,
+            backendUser,
+            loading: false,
+            error: null,
+          });
+        } catch {
+          // Firebase auth OK but backend sync failed — still set user
+          setState({
+            user: firebaseUser,
+            backendUser: null,
+            loading: false,
+            error: null,
+          });
+        }
+      } else {
+        setState({
+          user: null,
+          backendUser: null,
+          loading: false,
+          error: null,
+        });
+      }
     });
     return unsubscribe;
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (
+    email: string,
+    password: string,
+  ): Promise<BackendUser> => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // 1. Authenticate with Firebase
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+
+      // 2. Sync with backend — create user in DB if first login
+      const idToken = await credential.user.getIdToken();
+      const { user: backendUser } = await loginToBackend(idToken);
+
+      setState({
+        user: credential.user,
+        backendUser,
+        loading: false,
+        error: null,
+      });
+
+      return backendUser;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Đăng nhập thất bại";
       // Map Firebase error codes to Vietnamese messages
@@ -68,10 +195,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
+    setState({
+      user: null,
+      backendUser: null,
+      loading: false,
+      error: null,
+    });
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ ...state, signIn, signOut, syncBackendUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -137,12 +137,12 @@ export function AuthModal({
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      if (activeTab === "admin") {
+      const backendUser = await signIn(email, password);
+      if (activeTab === "admin" || backendUser.role === "admin") {
         router.push("/admin");
       } else {
-        onLoginSuccess?.();
-        onClose();
+        // Redirect to user dashboard instead of showing portal modal
+        router.push("/dashboard");
       }
     } catch {
       // authError is already synced via useEffect above; set a fallback only
