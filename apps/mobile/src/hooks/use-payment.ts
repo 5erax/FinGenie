@@ -34,11 +34,23 @@ export function usePaymentHistory() {
   });
 }
 
+// ─── PayOS ────────────────────────────────────────────────────────────────────
+
 export function useCreatePaymentLink() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CreatePaymentDto) =>
       paymentService.createPaymentLink(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+    },
+  });
+}
+
+export function useVerifyPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderCode: string) => paymentService.verifyPayment(orderCode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
     },
@@ -55,12 +67,25 @@ export function useCancelPayment() {
   });
 }
 
-export function useVerifyPayment() {
+// ─── Stripe ───────────────────────────────────────────────────────────────────
+
+export function useCreateStripeCheckout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (orderCode: string) => paymentService.verifyPayment(orderCode),
+    mutationFn: (data: CreatePaymentDto) =>
+      paymentService.createStripeCheckout(data),
     onSuccess: () => {
-      // Refresh payment status and history after verification
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+    },
+  });
+}
+
+export function useVerifyStripePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      paymentService.verifyStripePayment(sessionId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
     },
   });

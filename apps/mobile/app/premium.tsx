@@ -19,8 +19,10 @@ import {
   usePaymentStatus,
   usePaymentHistory,
   useCreatePaymentLink,
+  useCreateStripeCheckout,
   useCancelPayment,
   useVerifyPayment,
+  useVerifyStripePayment,
 } from "../src/hooks/use-payment";
 import { formatVND, formatDate } from "../src/utils/format";
 import {
@@ -34,6 +36,7 @@ import type { ThemeColors } from "../src/hooks/use-theme-colors";
 import { ScreenHeader } from "../src/components/ScreenHeader";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import type { PaymentStatus } from "@fingenie/shared-types";
+import type { PaymentMethod } from "../src/services/payment-service";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +155,7 @@ function FeatureRow({ icon, colorKey, title, description }: FeatureItem) {
 
 export default function PremiumScreen() {
   const [selectedPlan, setSelectedPlan] = useState<Plan>("yearly");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("payos");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const colors = useThemeColors();
@@ -160,41 +164,69 @@ export default function PremiumScreen() {
 
   const { data: statusData, isLoading: statusLoading } = usePaymentStatus();
   const { data: history, isLoading: historyLoading } = usePaymentHistory();
-  const { mutateAsync: createLink, isPending: creating } =
+  const { mutateAsync: createLink, isPending: creatingPayOS } =
     useCreatePaymentLink();
+  const { mutateAsync: createStripeCheckout, isPending: creatingStripe } =
+    useCreateStripeCheckout();
   const { mutateAsync: cancelPayment, isPending: cancelling } =
     useCancelPayment();
   const { mutateAsync: verifyPayment } = useVerifyPayment();
+  const { mutateAsync: verifyStripePayment } = useVerifyStripePayment();
 
   const isPremium = statusData?.isPremium ?? false;
   const subscription = statusData?.subscription ?? null;
+  const creating = creatingPayOS || creatingStripe;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSubscribe = useCallback(async () => {
     try {
-      // Build return URLs using Expo's deep link scheme
       const returnUrl = Linking.createURL("payment/success");
       const cancelUrl = Linking.createURL("payment/cancel");
 
-      const result = await createLink({
-        plan: selectedPlan,
-        returnUrl,
-        cancelUrl,
-      });
+      let checkoutUrl: string;
+      let verificationId: string;
 
-      // Open Stripe checkout in an in-app browser
-      // openAuthSessionAsync returns control to the app when the user is
-      // redirected to our deep link (returnUrl or cancelUrl)
+      if (paymentMethod === "stripe") {
+        // ── Stripe flow ──────────────────────────────────────────────
+        const result = await createStripeCheckout({
+          plan: selectedPlan,
+          returnUrl,
+          cancelUrl,
+        });
+        checkoutUrl = result.checkoutUrl ?? "";
+        verificationId = result.sessionId;
+      } else {
+        // ── PayOS flow ───────────────────────────────────────────────
+        const result = await createLink({
+          plan: selectedPlan,
+          returnUrl,
+          cancelUrl,
+        });
+        checkoutUrl = result.paymentLink;
+        verificationId = String(result.orderCode);
+      }
+
+      if (!checkoutUrl) {
+        Alert.alert("Lỗi", "Không thể tạo link thanh toán.", [
+          { text: "Đóng" },
+        ]);
+        return;
+      }
+
+      // Open checkout in an in-app browser
       const browserResult = await WebBrowser.openAuthSessionAsync(
-        result.paymentLink,
+        checkoutUrl,
         returnUrl,
       );
 
-      // After returning from the browser, verify the payment status with PayOS
+      // After returning, verify the payment status
       setVerifying(true);
       try {
-        const verification = await verifyPayment(String(result.orderCode));
+        const verification =
+          paymentMethod === "stripe"
+            ? await verifyStripePayment(verificationId)
+            : await verifyPayment(verificationId);
 
         if (verification.status === "success") {
           Alert.alert(
@@ -208,7 +240,6 @@ export default function PremiumScreen() {
         ) {
           // User cancelled or session expired — no alert needed
         } else {
-          // Still pending — might take a moment
           Alert.alert(
             "Đang xử lý",
             "Thanh toán của bạn đang được xử lý. Trạng thái sẽ được cập nhật trong giây lát.",
@@ -216,7 +247,6 @@ export default function PremiumScreen() {
           );
         }
       } catch {
-        // Verification failed — but payment might still succeed via webhook
         Alert.alert(
           "Không thể xác minh",
           "Không thể kiểm tra trạng thái thanh toán. Vui lòng kiểm tra lại sau.",
@@ -232,7 +262,14 @@ export default function PremiumScreen() {
         [{ text: "Đóng" }],
       );
     }
-  }, [createLink, selectedPlan, verifyPayment]);
+  }, [
+    createLink,
+    createStripeCheckout,
+    selectedPlan,
+    paymentMethod,
+    verifyPayment,
+    verifyStripePayment,
+  ]);
 
   const handleCancelSubscription = useCallback(() => {
     const latestOrder = history?.find((o) => o.status === "success");
@@ -666,6 +703,94 @@ export default function PremiumScreen() {
           </Pressable>
         </View>
 
+        {/* Payment Method Selection */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+            Phương thức thanh toán
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.methodSegment,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Pressable
+            style={[
+              styles.methodTab,
+              paymentMethod === "payos" && [
+                styles.methodTabActive,
+                { backgroundColor: colors.accent },
+              ],
+            ]}
+            onPress={() => setPaymentMethod("payos")}
+          >
+            <Text
+              style={[
+                styles.methodTabText,
+                {
+                  color:
+                    paymentMethod === "payos"
+                      ? colors.background
+                      : colors.textSecondary,
+                },
+              ]}
+            >
+              PayOS
+            </Text>
+            <Text
+              style={[
+                styles.methodTabHint,
+                {
+                  color:
+                    paymentMethod === "payos"
+                      ? `${colors.background}cc`
+                      : colors.textMuted,
+                },
+              ]}
+            >
+              Chuyển khoản / QR
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.methodTab,
+              paymentMethod === "stripe" && [
+                styles.methodTabActive,
+                { backgroundColor: colors.accent },
+              ],
+            ]}
+            onPress={() => setPaymentMethod("stripe")}
+          >
+            <Text
+              style={[
+                styles.methodTabText,
+                {
+                  color:
+                    paymentMethod === "stripe"
+                      ? colors.background
+                      : colors.textSecondary,
+                },
+              ]}
+            >
+              Stripe
+            </Text>
+            <Text
+              style={[
+                styles.methodTabHint,
+                {
+                  color:
+                    paymentMethod === "stripe"
+                      ? `${colors.background}cc`
+                      : colors.textMuted,
+                },
+              ]}
+            >
+              Visa / Mastercard
+            </Text>
+          </Pressable>
+        </View>
+
         {/* CTA Button */}
         <PrimaryButton
           title={verifying ? "Đang xác minh thanh toán..." : "Đăng ký ngay"}
@@ -677,7 +802,10 @@ export default function PremiumScreen() {
         />
 
         <Text style={[styles.ctaHint, { color: colors.textMuted }]}>
-          Thanh toán an toàn qua PayOS · Có thể huỷ bất cứ lúc nào
+          {paymentMethod === "stripe"
+            ? "Thanh toán an toàn qua Stripe · Visa / Mastercard"
+            : "Thanh toán an toàn qua PayOS · Chuyển khoản ngân hàng"}
+          {" · Có thể huỷ bất cứ lúc nào"}
         </Text>
 
         {/* Payment History */}
@@ -1061,6 +1189,34 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     marginHorizontal: SPACING.lg,
     lineHeight: 18,
+  },
+
+  // ── Payment Method Segment ────────────────────────────────────────────────
+
+  methodSegment: {
+    flexDirection: "row",
+    marginHorizontal: SPACING.lg,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: SPACING.xl,
+  },
+  methodTab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 2,
+  },
+  methodTabActive: {
+    borderRadius: 12,
+    margin: 2,
+  },
+  methodTabText: {
+    fontSize: FONT_SIZE.body2,
+    fontWeight: FONT_WEIGHT.bold,
+  },
+  methodTabHint: {
+    fontSize: FONT_SIZE.xs,
   },
 
   // ── Cancel Button (premium state) ─────────────────────────────────────────

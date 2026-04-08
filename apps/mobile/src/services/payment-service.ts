@@ -14,6 +14,13 @@ export interface PaymentLink {
   order: PaymentOrder;
 }
 
+export interface StripeCheckout {
+  checkoutUrl: string;
+  sessionId: string;
+  subscription: Subscription;
+  order: PaymentOrder;
+}
+
 export interface PaymentStatusResponse {
   subscription: Subscription | null;
   isPremium: boolean;
@@ -26,11 +33,45 @@ export interface VerifyPaymentResponse {
   message: string;
 }
 
+export type PaymentMethod = "payos" | "stripe";
+
 export const paymentService = {
+  // ─── PayOS ──────────────────────────────────────────────────────────────────
+
   async createPaymentLink(data: CreatePaymentDto): Promise<PaymentLink> {
     const response = await api.post<PaymentLink>("/payments/create-link", data);
     return response.data;
   },
+
+  async verifyPayment(orderCode: string): Promise<VerifyPaymentResponse> {
+    const response = await api.post<VerifyPaymentResponse>(
+      `/payments/verify/${orderCode}`,
+    );
+    return response.data;
+  },
+
+  async cancelPayment(orderCode: string): Promise<void> {
+    await api.post(`/payments/${orderCode}/cancel`);
+  },
+
+  // ─── Stripe ─────────────────────────────────────────────────────────────────
+
+  async createStripeCheckout(data: CreatePaymentDto): Promise<StripeCheckout> {
+    const response = await api.post<StripeCheckout>(
+      "/payments/stripe/create-checkout",
+      data,
+    );
+    return response.data;
+  },
+
+  async verifyStripePayment(sessionId: string): Promise<VerifyPaymentResponse> {
+    const response = await api.post<VerifyPaymentResponse>(
+      `/payments/stripe/verify/${sessionId}`,
+    );
+    return response.data;
+  },
+
+  // ─── Common ─────────────────────────────────────────────────────────────────
 
   async getStatus(): Promise<PaymentStatusResponse> {
     const response = await api.get<PaymentStatusResponse>("/payments/status");
@@ -44,22 +85,6 @@ export const paymentService = {
       page: number;
       limit: number;
     }>("/payments/history");
-    // Backend returns paginated shape; extract the data array
     return response.data.data;
-  },
-
-  async cancelPayment(orderCode: string): Promise<void> {
-    await api.post(`/payments/${orderCode}/cancel`);
-  },
-
-  /**
-   * Verify a payment with PayOS directly.
-   * If paid, activates premium on the backend.
-   */
-  async verifyPayment(orderCode: string): Promise<VerifyPaymentResponse> {
-    const response = await api.post<VerifyPaymentResponse>(
-      `/payments/verify/${orderCode}`,
-    );
-    return response.data;
   },
 };
