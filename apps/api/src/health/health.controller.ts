@@ -38,21 +38,21 @@ export class HealthController {
   }
 
   /**
-   * Deep health check – verifies SMTP connectivity for email sending.
+   * Deep health check – verifies Resend API connectivity for email sending.
    */
   @Get("email")
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "SMTP health check",
+    summary: "Email health check",
     description:
-      "Verifies SMTP is configured and can connect to the mail server.",
+      "Verifies Resend API is configured and can connect to the email service.",
   })
   async checkEmail() {
-    const smtp = await this.email.checkHealth();
+    const email = await this.email.checkHealth();
     return {
       timestamp: new Date().toISOString(),
-      smtp,
+      email,
     };
   }
 }

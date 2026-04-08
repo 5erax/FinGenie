@@ -1,87 +1,72 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import * as nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter;
-  private readonly smtpConfigured: boolean;
+  private readonly resend: Resend | null;
+  private readonly from: string;
+  private readonly configured: boolean;
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>("SMTP_HOST", "smtp.gmail.com");
-    const port = this.config.get<number>("SMTP_PORT", 587);
-    const user = this.config.get<string>("SMTP_USER");
-    const pass = this.config.get<string>("SMTP_PASS");
+    const apiKey = this.config.get<string>("RESEND_API_KEY");
+    this.from = this.config.get<string>(
+      "RESEND_FROM",
+      "FinGenie <onboarding@resend.dev>",
+    );
 
-    this.smtpConfigured = Boolean(user && pass);
+    this.configured = Boolean(apiKey);
 
-    if (!this.smtpConfigured) {
+    if (!this.configured) {
       this.logger.warn(
-        "SMTP_USER or SMTP_PASS not configured — email sending will be unavailable",
+        "RESEND_API_KEY not configured — email sending will be unavailable",
       );
+      this.resend = null;
     } else {
-      this.logger.log(
-        `SMTP configured: host=${host}, port=${port}, user=${user}`,
-      );
+      this.logger.log(`Resend configured: from=${this.from}`);
+      this.resend = new Resend(apiKey);
     }
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth:
-        user && pass
-          ? {
-              user,
-              pass,
-            }
-          : undefined,
-    });
   }
 
   /**
-   * Check SMTP connectivity and configuration status.
+   * Check Resend API connectivity and configuration status.
    */
   async checkHealth(): Promise<{
     configured: boolean;
     connected: boolean;
     error?: string;
   }> {
-    if (!this.smtpConfigured) {
+    if (!this.configured || !this.resend) {
       return {
         configured: false,
         connected: false,
-        error: "SMTP_USER or SMTP_PASS not set in environment variables",
+        error: "RESEND_API_KEY not set in environment variables",
       };
     }
 
     try {
-      await this.transporter.verify();
+      // Verify connectivity by listing domains (lightweight API call)
+      await this.resend.domains.list();
       return { configured: true, connected: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`SMTP health check failed: ${message}`);
+      this.logger.error(`Resend health check failed: ${message}`);
       return { configured: true, connected: false, error: message };
     }
   }
 
   async sendVerificationOtp(email: string, code: string): Promise<void> {
-    if (!this.smtpConfigured) {
+    if (!this.configured || !this.resend) {
       throw new Error(
-        "Email service unavailable: SMTP credentials not configured on server",
+        "Email service unavailable: RESEND_API_KEY not configured on server",
       );
     }
 
-    const from = this.config.get<string>(
-      "SMTP_FROM",
-      `"FinGenie" <${this.config.get<string>("SMTP_USER", "noreply@fingenie.vn")}>`,
-    );
-
     try {
-      await this.transporter.sendMail({
-        from,
-        to: email,
+      const { error } = await this.resend.emails.send({
+        from: this.from,
+        to: [email],
         subject: "Mã xác thực email - FinGenie",
         html: `
           <div style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8f9fa; border-radius: 16px;">
@@ -101,6 +86,10 @@ export class EmailService {
           </div>
         `,
       });
+
+      if (error) {
+        throw new Error(error.message);
+      }
 
       this.logger.log(`Verification OTP sent to ${email}`);
     } catch (err: unknown) {

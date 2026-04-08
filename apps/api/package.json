@@ -29,8 +29,8 @@
     "class-validator": "^0.14.2",
     "firebase-admin": "^13.7.0",
     "helmet": "^8.1.0",
-    "nodemailer": "^7.0.3",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.10.0",
     "rxjs": "^7.8.2",
     "stripe": "^17.7.0"
   },
@@ -41,7 +41,6 @@
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.15.17",
-    "@types/nodemailer": "^8.0.0",
     "jest": "^30.0.4",
     "source-map-support": "^0.5.21",
     "ts-jest": "^29.4.0",
