@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "138677191377",
+    "project_id": "fingenie-60788",
+    "storage_bucket": "fingenie-60788.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:138677191377:android:00dbb2808b680b8ccffbf0",
+        "android_client_info": {
+          "package_name": "com.fingenie.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "138677191377-n1pjtd8r1j6j9kbgjqjsdn9jpcaq9avg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTNvgkgwZesFoaZzol05gWmfT8wFcAEWc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "138677191377-n1pjtd8r1j6j9kbgjqjsdn9jpcaq9avg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
