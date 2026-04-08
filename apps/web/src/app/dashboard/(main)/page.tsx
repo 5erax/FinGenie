@@ -7,7 +7,7 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowUpDown,
-  Target,
+  PiggyBank,
   Crown,
   ArrowRight,
   Loader2,
@@ -20,10 +20,11 @@ import {
   fetchDashboardStats,
   fetchSavingPlans,
   fetchPremiumStatus,
+  getWalletMeta,
   type DashboardWallet,
   type DashboardTransaction,
   type DashboardStats,
-  type SavingPlan,
+  type ApiSavingPlan,
   type PremiumStatus,
 } from "@/lib/api";
 
@@ -89,7 +90,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [wallets, setWallets] = useState<DashboardWallet[]>([]);
   const [transactions, setTransactions] = useState<DashboardTransaction[]>([]);
-  const [savingPlans, setSavingPlans] = useState<SavingPlan[]>([]);
+  const [savingPlans, setSavingPlans] = useState<ApiSavingPlan[]>([]);
   const [premium, setPremium] = useState<PremiumStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,8 +162,8 @@ export default function DashboardPage() {
       {/* ── Stats Grid ── */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Tổng số dư"
-          value={formatCurrency(stats?.balance ?? 0)}
+          label="Tổng cân đối"
+          value={formatCurrency(stats?.net ?? 0)}
           icon={Wallet}
           color="#22c55e"
           delay={0}
@@ -183,7 +184,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Giao dịch"
-          value={String(stats?.transactionCount ?? 0)}
+          value={String(stats?.count ?? 0)}
           icon={ArrowUpDown}
           color="#a855f7"
           delay={0.3}
@@ -213,27 +214,30 @@ export default function DashboardPage() {
             <p className="text-sm text-zinc-500">Chưa có ví nào.</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {wallets.slice(0, 4).map((w) => (
-                <div
-                  key={w.id}
-                  className="flex items-center justify-between rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-lg"
-                      style={{ backgroundColor: `${w.color ?? "#3b82f6"}20` }}
-                    >
-                      {w.icon ?? "💰"}
+              {wallets.slice(0, 4).map((w) => {
+                const meta = getWalletMeta(w.type);
+                return (
+                  <div
+                    key={w.id}
+                    className="flex items-center justify-between rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-lg"
+                        style={{ backgroundColor: `${meta.color}20` }}
+                      >
+                        {meta.icon}
+                      </div>
+                      <span className="text-sm font-medium text-white">
+                        {w.name}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-white">
-                      {w.name}
+                    <span className="text-sm font-semibold text-white">
+                      {formatCurrency(w.balance)}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-white">
-                    {formatCurrency(w.balance)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </motion.div>
@@ -267,14 +271,14 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-lg">
-                      {tx.categoryIcon ?? (tx.type === "income" ? "📥" : "📤")}
+                      {tx.category?.icon ?? (tx.type === "income" ? "📥" : "📤")}
                     </span>
                     <div>
                       <p className="text-sm font-medium text-white">
-                        {tx.categoryName}
+                        {tx.category?.name ?? "Chưa phân loại"}
                       </p>
                       <p className="text-xs text-zinc-500">
-                        {tx.note ?? tx.walletName} · {formatDate(tx.date)}
+                        {tx.note ?? tx.wallet?.name ?? ""} · {formatDate(tx.date)}
                       </p>
                     </div>
                   </div>
@@ -293,9 +297,9 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* ── Bottom row: Goals + Premium ── */}
+      {/* ── Bottom row: Saving Plans + Premium ── */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Saving Goals */}
+        {/* Saving Plans */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -304,53 +308,43 @@ export default function DashboardPage() {
         >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold text-white">
-              Mục tiêu tiết kiệm
+              Kế hoạch tài chính
             </h2>
             <Link
               href="/dashboard/goals"
               className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300"
             >
-              Xem tất cả <ArrowRight size={12} />
+              Chi tiết <ArrowRight size={12} />
             </Link>
           </div>
           {savingPlans.length === 0 ? (
             <p className="text-sm text-zinc-500">
-              Chưa có mục tiêu nào. Hãy tạo mục tiêu đầu tiên!
+              Chưa có kế hoạch nào. Tạo trên app để bắt đầu!
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {savingPlans.slice(0, 3).map((plan) => {
-                const progress =
-                  plan.targetAmount > 0
-                    ? Math.min(
-                        (plan.currentAmount / plan.targetAmount) * 100,
-                        100,
-                      )
-                    : 0;
-                return (
-                  <div key={plan.id} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
+              {savingPlans.slice(0, 2).map((plan) => (
+                <div
+                  key={plan.id}
+                  className="rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <PiggyBank size={16} className="text-primary-400" />
                       <span className="text-sm font-medium text-white">
-                        <Target
-                          size={14}
-                          className="mr-1.5 inline text-primary-400"
-                        />
-                        {plan.name}
-                      </span>
-                      <span className="text-xs text-zinc-400">
-                        {formatCurrency(plan.currentAmount)} /{" "}
-                        {formatCurrency(plan.targetAmount)}
+                        Ngân sách hàng ngày
                       </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-400 transition-all duration-500"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
+                    <span className="text-sm font-semibold text-primary-400">
+                      {formatCurrency(plan.dailyBudget)}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="mt-2 flex gap-4 text-xs text-zinc-400">
+                    <span>Thu nhập: {formatCurrency(plan.monthlyIncome)}</span>
+                    <span>Tiết kiệm: {plan.savingPercent}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </motion.div>

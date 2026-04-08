@@ -110,15 +110,15 @@ export default function TransactionsPage() {
               >
                 <div className="flex items-center gap-4">
                   <span className="text-xl">
-                    {tx.categoryIcon ?? (tx.type === "income" ? "📥" : "📤")}
+                    {tx.category?.icon ?? (tx.type === "income" ? "📥" : "📤")}
                   </span>
                   <div>
                     <p className="text-sm font-medium text-white">
-                      {tx.categoryName}
+                      {tx.category?.name ?? "Chưa phân loại"}
                     </p>
                     <p className="text-xs text-zinc-500">
                       {tx.note ? `${tx.note} · ` : ""}
-                      {tx.walletName} · {formatDate(tx.date)}
+                      {tx.wallet?.name ?? ""} · {formatDate(tx.date)}
                     </p>
                   </div>
                 </div>

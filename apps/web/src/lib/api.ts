@@ -44,15 +44,32 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-// ── User Dashboard API ──────────────────────────────────────────────────────
+// ── Wallet type icon/color mapping ──────────────────────────────────────────
+
+const WALLET_TYPE_CONFIG: Record<
+  string,
+  { icon: string; color: string; label: string }
+> = {
+  cash: { icon: "💵", color: "#22c55e", label: "Tiền mặt" },
+  bank: { icon: "🏦", color: "#3b82f6", label: "Ngân hàng" },
+  e_wallet: { icon: "📱", color: "#a855f7", label: "Ví điện tử" },
+  other: { icon: "💰", color: "#f59e0b", label: "Khác" },
+};
+
+export function getWalletMeta(type: string) {
+  return WALLET_TYPE_CONFIG[type] ?? WALLET_TYPE_CONFIG.other;
+}
+
+// ── User Dashboard Types ────────────────────────────────────────────────────
 
 export interface DashboardWallet {
   id: string;
   name: string;
+  type: string;
   balance: number;
   currency: string;
-  icon: string | null;
-  color: string | null;
+  createdAt: string;
+  _count?: { transactions: number };
 }
 
 export interface DashboardTransaction {
@@ -60,27 +77,34 @@ export interface DashboardTransaction {
   type: "income" | "expense";
   amount: number;
   note: string | null;
-  categoryName: string;
-  categoryIcon: string | null;
-  walletName: string;
   date: string;
   createdAt: string;
+  wallet: { id: string; name: string; type: string };
+  category: { id: string; name: string; icon: string | null };
 }
 
 export interface DashboardStats {
   totalIncome: number;
   totalExpense: number;
-  balance: number;
-  transactionCount: number;
+  net: number;
+  count: number;
 }
 
-export interface SavingPlan {
+export interface ApiSavingPlan {
   id: string;
-  name: string;
-  targetAmount: number;
-  currentAmount: number;
-  deadline: string | null;
-  status: string;
+  monthlyIncome: number;
+  fixedExpenses: number;
+  variableExpenses: number;
+  savingPercent: number;
+  dailyBudget: number;
+  safeMoney: number;
+  createdAt: string;
+  updatedAt: string;
+  safeMoneyConfig: {
+    mode: string;
+    sensitivity: number;
+    threshold: number;
+  } | null;
 }
 
 export interface PremiumStatus {
@@ -105,6 +129,24 @@ export interface PaymentOrder {
     status: string;
   };
 }
+
+// ── AI Chat Types ───────────────────────────────────────────────────────────
+
+export interface AIChatSession {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AIMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  createdAt: string;
+}
+
+// ── API Functions ───────────────────────────────────────────────────────────
 
 /** Fetch user profile (GET /auth/me) */
 export function fetchProfile() {
@@ -145,15 +187,23 @@ export function fetchTransactions(params?: {
   }>(`/transactions${qs ? `?${qs}` : ""}`);
 }
 
-/** Fetch dashboard stats (GET /transactions/stats) */
-export function fetchDashboardStats(period?: string) {
-  const qs = period ? `?period=${period}` : "";
-  return apiFetch<DashboardStats>(`/transactions/stats${qs}`);
+/** Fetch dashboard stats (GET /transactions/summary) */
+export function fetchDashboardStats(query?: {
+  walletId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (query?.walletId) searchParams.set("walletId", query.walletId);
+  if (query?.startDate) searchParams.set("startDate", query.startDate);
+  if (query?.endDate) searchParams.set("endDate", query.endDate);
+  const qs = searchParams.toString();
+  return apiFetch<DashboardStats>(`/transactions/summary${qs ? `?${qs}` : ""}`);
 }
 
 /** Fetch saving plans (GET /saving-plans) */
 export function fetchSavingPlans() {
-  return apiFetch<SavingPlan[]>("/saving-plans");
+  return apiFetch<ApiSavingPlan[]>("/saving-plans");
 }
 
 /** Fetch premium status (GET /payments/status) */
@@ -169,4 +219,60 @@ export function fetchPaymentHistory(page = 1, limit = 20) {
     page: number;
     limit: number;
   }>(`/payments/history?page=${page}&limit=${limit}`);
+}
+
+// ── AI Chat API ─────────────────────────────────────────────────────────────
+
+/** Get AI chat status (GET /ai-chat/status) */
+export function fetchAIChatStatus() {
+  return apiFetch<{
+    available: boolean;
+    todayMessages: number;
+    dailyLimit: number;
+    isPremium: boolean;
+  }>("/ai-chat/status");
+}
+
+/** List all chat sessions (GET /ai-chat/sessions) */
+export function fetchAISessions(params?: { page?: number; limit?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  const qs = searchParams.toString();
+  return apiFetch<{ data: AIChatSession[]; total: number }>(
+    `/ai-chat/sessions${qs ? `?${qs}` : ""}`,
+  );
+}
+
+/** Create a new chat session (POST /ai-chat/sessions) */
+export function createAISession(title?: string) {
+  return apiFetch<AIChatSession>("/ai-chat/sessions", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+}
+
+/** Get session with all messages (GET /ai-chat/sessions/:id) */
+export function fetchAISession(sessionId: string) {
+  return apiFetch<AIChatSession & { messages: AIMessage[] }>(
+    `/ai-chat/sessions/${sessionId}`,
+  );
+}
+
+/** Delete a chat session (DELETE /ai-chat/sessions/:id) */
+export function deleteAISession(sessionId: string) {
+  return apiFetch<void>(`/ai-chat/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+}
+
+/** Send message to session (POST /ai-chat/sessions/:id/messages) */
+export function sendAIMessage(sessionId: string, content: string) {
+  return apiFetch<{ userMessage: AIMessage; assistantMessage: AIMessage }>(
+    `/ai-chat/sessions/${sessionId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    },
+  );
 }

@@ -2,14 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Wallet,
-  Plus,
-  ArrowUpDown,
-  Loader2,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { fetchWallets, type DashboardWallet } from "@/lib/api";
+import { Wallet, Loader2 } from "lucide-react";
+import { fetchWallets, getWalletMeta, type DashboardWallet } from "@/lib/api";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -72,48 +66,56 @@ export default function WalletsPage() {
         <p className="font-display text-3xl font-bold text-white">
           {formatCurrency(totalBalance)}
         </p>
-        <p className="mt-1 text-xs text-zinc-500">
-          {wallets.length} ví
-        </p>
+        <p className="mt-1 text-xs text-zinc-500">{wallets.length} ví</p>
       </motion.div>
 
       {/* Wallets Grid */}
       {wallets.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16">
           <Wallet size={48} className="text-zinc-600" />
-          <p className="text-zinc-400">Chưa có ví nào. Tạo ví đầu tiên trên app!</p>
+          <p className="text-zinc-400">
+            Chưa có ví nào. Tạo ví đầu tiên trên app!
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {wallets.map((wallet, i) => (
-            <motion.div
-              key={wallet.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              className="flex flex-col gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-xl text-xl"
-                  style={{
-                    backgroundColor: `${wallet.color ?? "#3b82f6"}20`,
-                  }}
-                >
-                  {wallet.icon ?? "💰"}
+          {wallets.map((wallet, i) => {
+            const meta = getWalletMeta(wallet.type);
+            return (
+              <motion.div
+                key={wallet.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+                className="flex flex-col gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-xl"
+                    style={{ backgroundColor: `${meta.color}20` }}
+                  >
+                    {meta.icon}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {wallet.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {meta.label} · {wallet.currency}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    {wallet.name}
+                <p className="font-display text-xl font-bold text-white">
+                  {formatCurrency(wallet.balance)}
+                </p>
+                {wallet._count && (
+                  <p className="text-xs text-zinc-500">
+                    {wallet._count.transactions} giao dịch
                   </p>
-                  <p className="text-xs text-zinc-500">{wallet.currency}</p>
-                </div>
-              </div>
-              <p className="font-display text-xl font-bold text-white">
-                {formatCurrency(wallet.balance)}
-              </p>
-            </motion.div>
-          ))}
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>
