@@ -52,7 +52,7 @@ export default function AdminAIChatPage() {
       .catch((err) => {
         console.error("Failed to fetch AI chat sessions:", err);
         setError(
-          "Không thể tải dữ liệu. Hãy đảm bảo API server đang chạy trên localhost:4000.",
+          "Không thể tải dữ liệu. Vui lòng kiểm tra kết nối API server.",
         );
       })
       .finally(() => setLoading(false));

@@ -606,7 +606,7 @@ export default function AnalyticsPage() {
       .catch((err: unknown) => {
         console.error("Failed to fetch analytics:", err);
         setApiError(
-          "Không thể tải dữ liệu phân tích. Hãy đảm bảo API server đang chạy trên localhost:4000.",
+          "Không thể tải dữ liệu phân tích. Vui lòng kiểm tra kết nối API server.",
         );
       })
       .finally(() => setLoading(false));

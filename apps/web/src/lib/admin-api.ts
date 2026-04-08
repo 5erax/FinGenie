@@ -1,6 +1,8 @@
 import { auth } from "./firebase";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://fingenie-production.up.railway.app/api/v1";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const user = auth.currentUser;
@@ -25,7 +27,7 @@ export async function adminFetch<T>(
   const { method = "GET", body, params } = options;
   const headers = await getAuthHeaders();
 
-  let url = `${API_BASE}/api/v1${path}`;
+  let url = `${API_URL}${path}`;
   if (params) {
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {

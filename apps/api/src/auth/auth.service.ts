@@ -14,6 +14,8 @@ import * as crypto from "crypto";
 const OTP_EXPIRY_MINUTES = 10;
 /** Max OTP send attempts per hour */
 const MAX_OTP_PER_HOUR = 5;
+/** Emails that are auto-assigned admin role on first login */
+const ADMIN_EMAILS = ["fingenie@gmail.com"];
 
 @Injectable()
 export class AuthService {
@@ -84,6 +86,7 @@ export class AuthService {
     }
 
     // Create new user
+    const isAdminEmail = email && ADMIN_EMAILS.includes(email.toLowerCase());
     user = await this.prisma.user.create({
       data: {
         firebaseUid: uid,
@@ -92,8 +95,13 @@ export class AuthService {
         displayName: name || email?.split("@")[0] || phone || "User",
         avatarUrl: picture || null,
         emailVerified: firebaseEmailVerified,
+        ...(isAdminEmail ? { role: "admin" } : {}),
       },
     });
+
+    if (isAdminEmail) {
+      this.logger.log(`Auto-assigned admin role to ${email}`);
+    }
 
     this.logger.log(`New user created: ${user.id} (${user.displayName})`);
     return {

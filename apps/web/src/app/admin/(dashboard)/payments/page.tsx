@@ -93,7 +93,7 @@ export default function AdminPaymentsPage() {
       .catch((err: unknown) => {
         console.error("Failed to fetch payments:", err);
         setApiError(
-          "Không thể kết nối API. Hãy đảm bảo API server đang chạy trên localhost:4000",
+          "Không thể kết nối API server.",
         );
       })
       .finally(() => setLoading(false));

@@ -39,7 +39,7 @@ export default function AdminDashboardPage() {
       .catch((err) => {
         console.error("Failed to fetch stats:", err);
         setApiError(
-          "Không thể kết nối API. Hãy đảm bảo API server đang chạy trên localhost:4000",
+          "Không thể kết nối API server.",
         );
       })
       .finally(() => setLoading(false));

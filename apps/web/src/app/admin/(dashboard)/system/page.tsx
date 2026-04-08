@@ -436,7 +436,7 @@ export default function SystemPage() {
     } catch (err) {
       console.error("Failed to fetch system info:", err);
       setApiError(
-        "Không thể tải thông tin hệ thống. Hãy đảm bảo API server đang chạy trên localhost:4000.",
+        "Không thể tải thông tin hệ thống. Vui lòng kiểm tra kết nối API server.",
       );
     } finally {
       setLoading(false);

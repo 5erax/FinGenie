@@ -12,7 +12,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "set-admin": "node --env-file=.env --import=tsx scripts/set-admin.ts"
+    "set-admin": "node --env-file=.env --import=tsx scripts/set-admin.ts",
+    "seed-admin": "node --env-file=.env --import=tsx scripts/seed-admin.ts"
   },
   "dependencies": {
     "@fingenie/database": "workspace:*",

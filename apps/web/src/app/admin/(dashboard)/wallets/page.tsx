@@ -114,7 +114,7 @@ export default function AdminWalletsPage() {
       .catch((err: Error) => {
         console.error("Failed to fetch wallets:", err);
         setApiError(
-          "Không thể kết nối API. Hãy đảm bảo API server đang chạy trên localhost:4000",
+          "Không thể kết nối API server.",
         );
       })
       .finally(() => setLoading(false));
