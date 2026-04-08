@@ -17,10 +17,46 @@ import { GamificationService } from "../gamification/gamification.service";
 import type { CreateSessionDto, SendMessageDto, QuerySessionsDto } from "./dto";
 
 const FREE_DAILY_LIMIT = 5;
+const MAX_HISTORY_MESSAGES = 20; // Limit conversation history to control token usage
+
+// ─── Simple TTL cache ──────────────────────────────────────────────────────────
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+class TtlCache<T> {
+  private store = new Map<string, CacheEntry<T>>();
+
+  get(key: string): T | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  set(key: string, value: T, ttlMs: number): void {
+    this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+
+  invalidate(key: string): void {
+    this.store.delete(key);
+  }
+}
+
+// Cache TTLs
+const PREMIUM_CACHE_TTL = 60_000; // 60s — short because premium changes matter
+const FINANCIAL_CONTEXT_CACHE_TTL = 300_000; // 5 min — data doesn't change mid-conversation
 
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
+  private readonly premiumCache = new TtlCache<boolean>();
+  private readonly financialContextCache = new TtlCache<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -132,13 +168,14 @@ export class AiChatService {
     // 4. Build financial context
     const financialContext = await this.buildFinancialContext(user.id);
 
-    // 5. Convert existing messages to Gemini Content[] format (skip system)
-    const history: Content[] = session.messages
+    // 5. Convert existing messages to Gemini Content[] format (skip system, trim to limit)
+    const relevantMessages = session.messages
       .filter((m) => m.role !== MessageRole.system)
-      .map((m) => ({
-        role: m.role === MessageRole.assistant ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
+      .slice(-MAX_HISTORY_MESSAGES);
+    const history: Content[] = relevantMessages.map((m) => ({
+      role: m.role === MessageRole.assistant ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
 
     // 6. Call Gemini (with availability check and error handling)
     if (!this.geminiService.isAvailable) {
@@ -250,12 +287,13 @@ export class AiChatService {
 
     // 5. Build context
     const financialContext = await this.buildFinancialContext(user.id);
-    const history: Content[] = session.messages
+    const relevantMessages = session.messages
       .filter((m) => m.role !== MessageRole.system)
-      .map((m) => ({
-        role: m.role === MessageRole.assistant ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
+      .slice(-MAX_HISTORY_MESSAGES);
+    const history: Content[] = relevantMessages.map((m) => ({
+      role: m.role === MessageRole.assistant ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
 
     // 6. Stream from Gemini
     let fullResponse = "";
@@ -327,15 +365,22 @@ export class AiChatService {
 
   /**
    * Query fresh premium status directly from DB to avoid stale cached user object.
+   * Cached for 60s per user to avoid repeated DB queries during a chat session.
    */
   private async checkFreshPremiumStatus(userId: string): Promise<boolean> {
+    const cached = this.premiumCache.get(userId);
+    if (cached !== undefined) return cached;
+
     const freshUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { premiumUntil: true },
     });
-    return !!(
+    const isPremium = !!(
       freshUser?.premiumUntil && new Date(freshUser.premiumUntil) > new Date()
     );
+
+    this.premiumCache.set(userId, isPremium, PREMIUM_CACHE_TTL);
+    return isPremium;
   }
 
   async getTodayMessageCount(userId: string): Promise<number> {
@@ -351,7 +396,14 @@ export class AiChatService {
     });
   }
 
+  /**
+   * Build financial context for AI. Cached for 5 min per user — data doesn't
+   * change meaningfully during a conversation session.
+   */
   private async buildFinancialContext(userId: string): Promise<string> {
+    const cached = this.financialContextCache.get(userId);
+    if (cached !== undefined) return cached;
+
     try {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -405,7 +457,13 @@ export class AiChatService {
         lines.push("\n## Kế hoạch tiết kiệm: Chưa thiết lập");
       }
 
-      return lines.join("\n");
+      const context = lines.join("\n");
+      this.financialContextCache.set(
+        userId,
+        context,
+        FINANCIAL_CONTEXT_CACHE_TTL,
+      );
+      return context;
     } catch (error) {
       this.logger.warn(
         `Failed to build financial context for user ${userId}: ${String(error)}`,
