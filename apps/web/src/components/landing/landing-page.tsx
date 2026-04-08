@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/landing/navbar";
 import { HorizontalScroll } from "@/components/landing/horizontal-scroll";

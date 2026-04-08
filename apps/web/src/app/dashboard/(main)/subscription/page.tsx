@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Crown, Check, Loader2 } from "lucide-react";
-import Link from "next/link";
 import {
   fetchPremiumStatus,
   fetchPaymentHistory,

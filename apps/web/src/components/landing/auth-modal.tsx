@@ -88,7 +88,7 @@ function GoogleIcon({ className }: { className?: string }) {
 export function AuthModal({
   isOpen,
   onClose,
-  onLoginSuccess,
+  onLoginSuccess: _onLoginSuccess,
   defaultTab = "user",
 }: AuthModalProps) {
   const router = useRouter();

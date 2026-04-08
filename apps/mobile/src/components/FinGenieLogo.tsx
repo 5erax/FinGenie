@@ -1,13 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "../hooks/use-theme-colors";
-import {
-  SPACING,
-  FONT_SIZE,
-  FONT_WEIGHT,
-  RADIUS,
-  SHADOWS,
-} from "../constants/theme";
+import { SPACING, FONT_SIZE, FONT_WEIGHT, SHADOWS } from "../constants/theme";
 
 interface FinGenieLogoProps {
   /** sm=login screen, lg=splash screen */

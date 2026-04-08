@@ -23,7 +23,7 @@ async function bootstrap(): Promise<void> {
     origin: isProduction
       ? process.env.CORS_ORIGINS
         ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
-        : true // Allow all origins if CORS_ORIGINS not explicitly set (Railway)
+        : ["https://fingenieweb.vercel.app", "https://fingenie.vercel.app"]
       : true, // Allow all origins in development (Expo web, LAN devices, etc.)
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
