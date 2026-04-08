@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "138677191377-qr9kkebce59ruih4kv94e3unfcgpr5de.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fingenie.app",
+            "certificate_hash": "d618fa901b94581d325b99683269177b7291c70c"
+          }
+        },
+        {
           "client_id": "138677191377-n1pjtd8r1j6j9kbgjqjsdn9jpcaq9avg.apps.googleusercontent.com",
           "client_type": 3
         }
