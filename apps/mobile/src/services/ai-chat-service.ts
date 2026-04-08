@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { api } from "@/lib/api";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -53,6 +54,140 @@ function getAuthToken(): string | null {
   return useAuthStore.getState().token;
 }
 
+/**
+ * Parse SSE lines from a text chunk, handling partial lines.
+ * Returns the remaining buffer (unparsed partial line).
+ */
+function parseSSEChunk(
+  text: string,
+  buffer: string,
+  onEvent: (event: StreamEvent) => void,
+): string {
+  const combined = buffer + text;
+  const lines = combined.split("\n");
+  // Last element may be an incomplete line — keep it as buffer
+  let remaining = lines.pop() ?? "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("data: ")) {
+      try {
+        const parsed = JSON.parse(trimmed.slice(6)) as StreamEvent;
+        onEvent(parsed);
+      } catch {
+        // Incomplete JSON — put line back in buffer
+        remaining = trimmed + "\n" + remaining;
+        break;
+      }
+    }
+  }
+
+  return remaining;
+}
+
+/**
+ * Stream SSE via ReadableStream (web + RN 0.76+ with New Arch).
+ */
+async function streamViaFetch(
+  url: string,
+  token: string | null,
+  content: string,
+  signal: AbortSignal,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ content }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Stream request failed: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("ReadableStream not supported");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer = parseSSEChunk(
+      decoder.decode(value, { stream: true }),
+      buffer,
+      onEvent,
+    );
+  }
+}
+
+/**
+ * Stream SSE via XMLHttpRequest onprogress (React Native fallback).
+ * Works on all React Native versions — XHR supports incremental responseText.
+ */
+function streamViaXHR(
+  url: string,
+  token: string | null,
+  content: string,
+  signal: AbortSignal,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "text/event-stream");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    let lastIndex = 0;
+    let buffer = "";
+
+    xhr.onprogress = () => {
+      const newData = xhr.responseText.substring(lastIndex);
+      lastIndex = xhr.responseText.length;
+      buffer = parseSSEChunk(newData, buffer, onEvent);
+    };
+
+    xhr.onload = () => {
+      // Process any remaining data
+      if (xhr.responseText.length > lastIndex) {
+        const remaining = xhr.responseText.substring(lastIndex);
+        parseSSEChunk(remaining, buffer, onEvent);
+      }
+      resolve();
+    };
+
+    xhr.onerror = () => {
+      reject(new Error(`Stream request failed: ${xhr.status}`));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error("Stream request timed out"));
+    };
+
+    // Handle abort
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    };
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    xhr.send(JSON.stringify({ content }));
+  });
+}
+
 export const aiChatService = {
   async getStatus(): Promise<AIStatus> {
     const response = await api.get<AIStatus>("/ai-chat/status");
@@ -103,9 +238,12 @@ export const aiChatService = {
 
   /**
    * Send a message and stream the AI response via SSE.
-   * Uses native fetch to consume the text/event-stream on web.
-   * Falls back to non-streaming endpoint on native (ReadableStream unsupported).
-   * Calls `onEvent` for each parsed SSE event.
+   *
+   * Strategy (in priority order):
+   * 1. Web / RN with ReadableStream → fetch + getReader()
+   * 2. Native RN → XMLHttpRequest with onprogress (incremental text)
+   * 3. Last resort → non-streaming endpoint with simulated events
+   *
    * Returns an AbortController so the caller can cancel the stream.
    */
   sendMessageStream(
@@ -115,92 +253,53 @@ export const aiChatService = {
     onError?: (error: Error) => void,
   ): AbortController {
     const controller = new AbortController();
+    const token = getAuthToken();
+    const url = `${API_BASE_URL}/ai-chat/sessions/${sessionId}/messages/stream`;
 
-    const runStreaming = async () => {
-      const token = getAuthToken();
-      const url = `${API_BASE_URL}/ai-chat/sessions/${sessionId}/messages/stream`;
+    const run = async () => {
+      // On native platforms, prefer XHR streaming (reliable on all RN versions).
+      // On web, use fetch + ReadableStream.
+      if (Platform.OS === "web") {
+        await streamViaFetch(url, token, content, controller.signal, onEvent);
+      } else {
+        // Try XHR streaming first (works on all RN versions)
+        try {
+          await streamViaXHR(url, token, content, controller.signal, onEvent);
+        } catch (xhrErr) {
+          if ((xhrErr as Error).name === "AbortError") throw xhrErr;
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ content }),
-        signal: controller.signal,
-      });
+          // If XHR streaming failed, try fetch (RN 0.76+ with New Arch)
+          try {
+            await streamViaFetch(
+              url,
+              token,
+              content,
+              controller.signal,
+              onEvent,
+            );
+          } catch (fetchErr) {
+            if ((fetchErr as Error).name === "AbortError") throw fetchErr;
 
-      if (!response.ok) {
-        throw new Error(`Stream request failed: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        // ReadableStream not supported (React Native) — fall back to non-streaming
-        throw new Error("ReadableStream not supported");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // Parse SSE lines: each event is "data: {...}\n\n"
-        const lines = buffer.split("\n");
-        buffer = "";
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-
-          if (line.startsWith("data: ")) {
-            try {
-              const parsed = JSON.parse(line.slice(6)) as StreamEvent;
-              onEvent(parsed);
-            } catch {
-              // Incomplete JSON — put it back in the buffer
-              buffer = lines.slice(i).join("\n");
-              break;
-            }
-          } else if (line !== "") {
-            // Non-empty, non-data line — keep in buffer (might be partial)
-            buffer = lines.slice(i).join("\n");
-            break;
+            // Final fallback: non-streaming endpoint
+            const result = await aiChatService.sendMessage(sessionId, content);
+            onEvent({ type: "user_message", userMessage: result.userMessage });
+            onEvent({
+              type: "chunk",
+              content: result.assistantMessage.content,
+            });
+            onEvent({
+              type: "done",
+              assistantMessage: result.assistantMessage,
+            });
           }
         }
       }
     };
 
-    /**
-     * Fallback: use the non-streaming endpoint and simulate stream events.
-     * This works on all platforms (React Native included).
-     */
-    const runFallback = async () => {
-      const result = await aiChatService.sendMessage(sessionId, content);
-
-      // Emit events in the same order as the streaming endpoint
-      onEvent({ type: "user_message", userMessage: result.userMessage });
-      onEvent({ type: "chunk", content: result.assistantMessage.content });
-      onEvent({
-        type: "done",
-        assistantMessage: result.assistantMessage,
-      });
-    };
-
-    runStreaming()
-      .catch((err: unknown) => {
-        if ((err as Error).name === "AbortError") return;
-
-        // If streaming failed (e.g. ReadableStream not supported), try non-streaming
-        return runFallback();
-      })
-      .catch((err: unknown) => {
-        if ((err as Error).name === "AbortError") return;
-        onError?.(err instanceof Error ? err : new Error(String(err)));
-      });
+    run().catch((err: unknown) => {
+      if ((err as Error).name === "AbortError") return;
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    });
 
     return controller;
   },
