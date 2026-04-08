@@ -97,6 +97,10 @@ export class PayOSService implements OnModuleInit {
     returnUrl: string;
     cancelUrl: string;
   }): Promise<PayOSPaymentLink> {
+    if (!this.payos) {
+      throw new Error("PayOS is not configured. Cannot create payment link.");
+    }
+
     const result = await this.payos.paymentRequests.create({
       orderCode: params.orderCode,
       amount: params.amount,
@@ -120,6 +124,9 @@ export class PayOSService implements OnModuleInit {
    * Returns the verified webhook data or throws if invalid.
    */
   verifyWebhook(body: unknown): PayOSWebhookData {
+    if (!this.payos) {
+      throw new Error("PayOS is not configured. Cannot verify webhook.");
+    }
     return this.payos.webhooks.verify(body) as PayOSWebhookData;
   }
 
@@ -127,6 +134,9 @@ export class PayOSService implements OnModuleInit {
    * Get payment link information by order code.
    */
   async getPaymentInfo(orderCode: number | string): Promise<PayOSPaymentLink> {
+    if (!this.payos) {
+      throw new Error("PayOS is not configured. Cannot get payment info.");
+    }
     return this.payos.paymentRequests.get(
       String(orderCode),
     ) as Promise<PayOSPaymentLink>;
@@ -139,6 +149,9 @@ export class PayOSService implements OnModuleInit {
     orderCode: number | string,
     reason?: string,
   ): Promise<void> {
+    if (!this.payos) {
+      throw new Error("PayOS is not configured. Cannot cancel payment link.");
+    }
     await this.payos.paymentRequests.cancel(String(orderCode), {
       cancellationReason: reason ?? "Người dùng hủy thanh toán",
     });

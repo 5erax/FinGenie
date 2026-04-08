@@ -50,6 +50,7 @@ enum SubscriptionPlan {
 }
 
 enum SubscriptionStatus {
+  pending
   active
   cancelled
   expired
@@ -328,7 +329,7 @@ model Subscription {
   id     String             @id @default(cuid())
   userId String
   plan   SubscriptionPlan   @default(free)
-  status SubscriptionStatus @default(active)
+  status SubscriptionStatus @default(pending)
 
   startDate DateTime  @default(now())
   endDate   DateTime?

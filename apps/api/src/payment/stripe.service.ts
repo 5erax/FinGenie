@@ -29,7 +29,20 @@ export class StripeService implements OnModuleInit {
 
     this.stripe = new Stripe(secretKey!);
     this.webhookSecret = webhookSecret ?? "";
-    this.logger.log("Stripe initialized");
+
+    // Warn if using live key in non-production environment
+    if (
+      secretKey?.startsWith("sk_live_") &&
+      process.env.NODE_ENV !== "production"
+    ) {
+      this.logger.warn(
+        "⚠️ LIVE Stripe key detected in non-production environment! Ensure this is intentional.",
+      );
+    }
+
+    this.logger.log(
+      `Stripe initialized (${secretKey?.startsWith("sk_test_") ? "TEST" : "LIVE"} mode)`,
+    );
   }
 
   get isAvailable(): boolean {

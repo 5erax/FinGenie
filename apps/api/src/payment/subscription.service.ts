@@ -53,7 +53,7 @@ export class SubscriptionService {
         data: {
           userId,
           plan,
-          status: "active",
+          status: "pending",
           startDate: new Date(),
           endDate,
         },
@@ -109,9 +109,39 @@ export class SubscriptionService {
         include: { subscription: true },
       });
 
+      // Activate subscription (was created as "pending")
+      await tx.subscription.update({
+        where: { id: order.subscriptionId },
+        data: { status: "active" },
+      });
+
+      // Extend premium: if user already has premiumUntil in the future, add on top
+      const currentUser = await tx.user.findUnique({
+        where: { id: order.userId },
+        select: { premiumUntil: true },
+      });
+
+      const now = new Date();
+      const currentEnd =
+        currentUser?.premiumUntil && currentUser.premiumUntil > now
+          ? currentUser.premiumUntil
+          : now;
+
+      // Calculate new end date relative to current premium end
+      const planDays = order.subscription.plan === "yearly" ? 365 : 30;
+      const newEndDate = new Date(
+        currentEnd.getTime() + planDays * 24 * 60 * 60 * 1000,
+      );
+
       await tx.user.update({
         where: { id: order.userId },
-        data: { premiumUntil: order.subscription.endDate },
+        data: { premiumUntil: newEndDate },
+      });
+
+      // Also update the subscription endDate to match
+      await tx.subscription.update({
+        where: { id: order.subscriptionId },
+        data: { endDate: newEndDate },
       });
 
       return updatedOrder;

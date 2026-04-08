@@ -112,24 +112,13 @@ export class PaymentController {
   })
   @ApiOkResponse({ description: "Webhook acknowledged" })
   async handleWebhook(@Body() body: unknown) {
-    // Persist raw event first for auditability
     const rawBody = body as Record<string, unknown>;
     const orderCode = String(
       (rawBody?.data as Record<string, unknown>)?.orderCode ?? "unknown",
     );
     const signature = String(rawBody?.signature ?? "");
 
-    try {
-      await this.subscriptionService.recordWebhookEvent({
-        stripeSessionId: orderCode,
-        payload: rawBody,
-        signature,
-      });
-    } catch (recordErr) {
-      this.logger.error("Failed to record webhook event", recordErr);
-    }
-
-    // Verify signature via PayOS SDK
+    // Verify signature FIRST via PayOS SDK
     let webhookData;
     try {
       webhookData = this.payosService.verifyWebhook(body);
@@ -139,6 +128,17 @@ export class PaymentController {
         verifyErr,
       );
       return { success: false, error: "Invalid webhook signature" };
+    }
+
+    // Persist verified event for auditability
+    try {
+      await this.subscriptionService.recordWebhookEvent({
+        stripeSessionId: orderCode,
+        payload: rawBody,
+        signature,
+      });
+    } catch (recordErr) {
+      this.logger.error("Failed to record webhook event", recordErr);
     }
 
     // Process verified webhook
