@@ -73,7 +73,17 @@ export class EmailService {
       if (this.transport === "resend" && this.resend) {
         await this.resend.domains.list();
       } else if (this.transport === "smtp" && this.smtpTransporter) {
-        await this.smtpTransporter.verify();
+        // SMTP verify can hang on some cloud platforms (blocked port 587)
+        // Use a 5-second timeout to prevent request hanging
+        await Promise.race([
+          this.smtpTransporter.verify(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("SMTP verify timeout (5s)")),
+              5000,
+            ),
+          ),
+        ]);
       }
       return { configured: true, connected: true, transport: this.transport };
     } catch (err: unknown) {
