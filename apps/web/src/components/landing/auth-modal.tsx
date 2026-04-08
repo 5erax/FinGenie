@@ -58,6 +58,31 @@ const errorVariants = {
   },
 } as const;
 
+// ── Google Icon SVG ───────────────────────────────────────────────────────────
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AuthModal({
@@ -67,15 +92,17 @@ export function AuthModal({
   defaultTab = "user",
 }: AuthModalProps) {
   const router = useRouter();
-  const { signIn, error: authError } = useAuth();
+  const { signIn, signInWithGoogle, error: authError } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"user" | "admin">(defaultTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const isUserTab = activeTab === "user";
+  const isAnyLoading = loading || googleLoading;
 
   // Sync auth-context errors into local error state
   useEffect(() => {
@@ -85,12 +112,12 @@ export function AuthModal({
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      // Defer to let exit animation complete
       const id = setTimeout(() => {
         setEmail("");
         setPassword("");
         setLocalError(null);
         setLoading(false);
+        setGoogleLoading(false);
       }, 300);
       return () => clearTimeout(id);
     }
@@ -120,7 +147,7 @@ export function AuthModal({
     };
   }, [isOpen]);
 
-  // ── Keyboard: Escape to close ──────────────────────────────────────────────
+  // Keyboard: Escape to close
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -130,7 +157,16 @@ export function AuthModal({
     return () => window.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Redirect after login ──────────────────────────────────────────────────
+  const handleLoginSuccess = (role: string) => {
+    if (activeTab === "admin" || role === "admin") {
+      router.push("/admin");
+    } else {
+      router.push("/dashboard");
+    }
+  };
+
+  // ── Email/Password Submit ─────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);
@@ -138,20 +174,34 @@ export function AuthModal({
 
     try {
       const backendUser = await signIn(email, password);
-      if (activeTab === "admin" || backendUser.role === "admin") {
-        router.push("/admin");
-      } else {
-        // Redirect to user dashboard instead of showing portal modal
-        router.push("/dashboard");
-      }
+      handleLoginSuccess(backendUser.role);
     } catch {
-      // authError is already synced via useEffect above; set a fallback only
-      // if authError hasn't arrived yet
-      if (!authError) {
-        setLocalError("Email hoặc mật khẩu không đúng. Vui lòng thử lại.");
-      }
+      // Error is already set by auth-context via useEffect sync
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    setLocalError(null);
+    setGoogleLoading(true);
+
+    try {
+      const backendUser = await signInWithGoogle();
+      handleLoginSuccess(backendUser.role);
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? "";
+      // Don't show error for cancelled popups
+      if (
+        code === "auth/popup-closed-by-user" ||
+        code === "auth/cancelled-popup-request"
+      ) {
+        // User cancelled, do nothing
+      }
+      // Error is already set by auth-context
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -173,7 +223,7 @@ export function AuthModal({
             aria-hidden="true"
           />
 
-          {/* ── Centering wrapper (does not block clicks on backdrop) ── */}
+          {/* ── Centering wrapper ── */}
           <div
             className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
             aria-hidden="true"
@@ -207,7 +257,7 @@ export function AuthModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  disabled={loading}
+                  disabled={isAnyLoading}
                   aria-label="Đóng"
                   className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:pointer-events-none"
                 >
@@ -231,11 +281,10 @@ export function AuthModal({
 
                 {/* ── Tabs ── */}
                 <div className="mb-6 flex rounded-xl border border-white/[0.08] bg-white/[0.04] p-1">
-                  {/* User tab */}
                   <button
                     type="button"
                     onClick={() => setActiveTab("user")}
-                    disabled={loading}
+                    disabled={isAnyLoading}
                     className={cn(
                       "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                       isUserTab
@@ -246,12 +295,10 @@ export function AuthModal({
                     <User className="h-3.5 w-3.5 shrink-0" />
                     Người dùng
                   </button>
-
-                  {/* Admin tab */}
                   <button
                     type="button"
                     onClick={() => setActiveTab("admin")}
-                    disabled={loading}
+                    disabled={isAnyLoading}
                     className={cn(
                       "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                       !isUserTab
@@ -276,7 +323,6 @@ export function AuthModal({
                       animate="visible"
                       exit="exit"
                     >
-                      {/* Warning icon */}
                       <svg
                         className="mt-px h-4 w-4 shrink-0"
                         viewBox="0 0 24 24"
@@ -295,6 +341,32 @@ export function AuthModal({
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* ── Google Sign-In (User tab only) ── */}
+                {isUserTab && (
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isAnyLoading}
+                    className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {googleLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <GoogleIcon className="h-4 w-4" />
+                    )}
+                    Đăng nhập bằng Google
+                  </button>
+                )}
+
+                {/* ── Divider ── */}
+                {isUserTab && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-white/[0.08]" />
+                    <span className="text-xs text-zinc-600">hoặc</span>
+                    <div className="h-px flex-1 bg-white/[0.08]" />
+                  </div>
+                )}
 
                 {/* ── Form ── */}
                 <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -321,7 +393,7 @@ export function AuthModal({
                         placeholder={
                           isUserTab ? "ban@example.com" : "admin@fingenie.vn"
                         }
-                        disabled={loading}
+                        disabled={isAnyLoading}
                         className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-colors duration-200 focus:border-primary-500/50 focus:bg-white/[0.06] disabled:opacity-50"
                       />
                     </div>
@@ -348,7 +420,7 @@ export function AuthModal({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        disabled={loading}
+                        disabled={isAnyLoading}
                         className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-colors duration-200 focus:border-primary-500/50 focus:bg-white/[0.06] disabled:opacity-50"
                       />
                     </div>
@@ -357,7 +429,7 @@ export function AuthModal({
                   {/* Submit */}
                   <button
                     type="submit"
-                    disabled={loading || !email || !password}
+                    disabled={isAnyLoading || !email || !password}
                     className={cn(
                       "mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60",
                       isUserTab
@@ -371,7 +443,7 @@ export function AuthModal({
                         Đang đăng nhập...
                       </>
                     ) : (
-                      "Đăng nhập"
+                      "Đăng nhập bằng Email"
                     )}
                   </button>
                 </form>

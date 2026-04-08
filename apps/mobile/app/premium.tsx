@@ -181,8 +181,8 @@ export default function PremiumScreen() {
 
   const handleSubscribe = useCallback(async () => {
     try {
-      const returnUrl = Linking.createURL("payment/success");
-      const cancelUrl = Linking.createURL("payment/cancel");
+      const returnUrl = Linking.createURL("premium");
+      const cancelUrl = Linking.createURL("premium");
 
       let checkoutUrl: string;
       let verificationId: string;

@@ -11,6 +11,8 @@ import {
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
@@ -42,8 +44,32 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<BackendUser>;
+  signInWithGoogle: () => Promise<BackendUser>;
   signOut: () => Promise<void>;
   syncBackendUser: () => Promise<BackendUser | null>;
+}
+
+// ── Firebase error → Vietnamese ─────────────────────────────────────────────
+
+const FIREBASE_ERROR_MAP: Record<string, string> = {
+  "auth/invalid-credential": "Email hoặc mật khẩu không đúng",
+  "auth/user-not-found": "Tài khoản không tồn tại",
+  "auth/wrong-password": "Mật khẩu không đúng",
+  "auth/too-many-requests": "Quá nhiều lần thử. Vui lòng thử lại sau.",
+  "auth/invalid-email": "Email không hợp lệ",
+  "auth/user-disabled": "Tài khoản đã bị vô hiệu hóa",
+  "auth/popup-closed-by-user": "Đăng nhập bị hủy",
+  "auth/cancelled-popup-request": "Đăng nhập bị hủy",
+  "auth/account-exists-with-different-credential":
+    "Tài khoản đã tồn tại với phương thức đăng nhập khác",
+};
+
+function getFirebaseErrorMessage(err: unknown): string {
+  const code = (err as { code?: string }).code ?? "";
+  return (
+    FIREBASE_ERROR_MAP[code] ??
+    (err instanceof Error ? err.message : "Đăng nhập thất bại")
+  );
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -62,7 +88,7 @@ async function loginToBackend(
     const body = await res.json().catch(() => ({}));
     throw new Error(
       (body as { message?: string }).message ??
-        `Backend login failed (${res.status})`,
+        `Không thể kết nối server (${res.status})`,
     );
   }
 
@@ -73,18 +99,8 @@ async function loginToBackend(
   }>;
 }
 
-/** Call GET /auth/me with Firebase ID token. */
-async function fetchMe(idToken: string): Promise<BackendUser> {
-  const res = await fetch(`${API_URL}/auth/me`, {
-    headers: { Authorization: `Bearer ${idToken}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch user profile (${res.status})`);
-  }
-
-  return res.json() as Promise<BackendUser>;
-}
+// ── Google provider singleton ───────────────────────────────────────────────
+const googleProvider = new GoogleAuthProvider();
 
 // ── Context ─────────────────────────────────────────────────────────────────
 
@@ -109,7 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, backendUser }));
       return backendUser;
     } catch {
-      // Silently fail — user is still Firebase-authenticated
       return null;
     }
   }, []);
@@ -128,7 +143,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error: null,
           });
         } catch {
-          // Firebase auth OK but backend sync failed — still set user
           setState({
             user: firebaseUser,
             backendUser: null,
@@ -148,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  // ── Email + Password sign-in ──────────────────────────────────────────────
   const signIn = async (
     email: string,
     password: string,
@@ -161,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       );
 
-      // 2. Sync with backend — create user in DB if first login
+      // 2. Sync with backend
       const idToken = await credential.user.getIdToken();
       const { user: backendUser } = await loginToBackend(idToken);
 
@@ -174,20 +189,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return backendUser;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Đăng nhập thất bại";
-      // Map Firebase error codes to Vietnamese messages
-      const errorMap: Record<string, string> = {
-        "auth/invalid-credential": "Email hoặc mật khẩu không đúng",
-        "auth/user-not-found": "Tài khoản không tồn tại",
-        "auth/wrong-password": "Mật khẩu không đúng",
-        "auth/too-many-requests": "Quá nhiều lần thử. Vui lòng thử lại sau.",
-        "auth/invalid-email": "Email không hợp lệ",
-      };
-      const code = (err as { code?: string }).code ?? "";
+      const message = getFirebaseErrorMessage(err);
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: errorMap[code] ?? message,
+        error: message,
+      }));
+      throw err;
+    }
+  };
+
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+  const signInWithGoogle = async (): Promise<BackendUser> => {
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      // 1. Firebase Google popup
+      const result = await signInWithPopup(auth, googleProvider);
+
+      // 2. Sync with backend
+      const idToken = await result.user.getIdToken();
+      const { user: backendUser } = await loginToBackend(idToken);
+
+      setState({
+        user: result.user,
+        backendUser,
+        loading: false,
+        error: null,
+      });
+
+      return backendUser;
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? "";
+      // Don't show error for user-cancelled popups
+      if (
+        code === "auth/popup-closed-by-user" ||
+        code === "auth/cancelled-popup-request"
+      ) {
+        setState((prev) => ({ ...prev, loading: false, error: null }));
+        throw err;
+      }
+      const message = getFirebaseErrorMessage(err);
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: message,
       }));
       throw err;
     }
@@ -205,7 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ...state, signIn, signOut, syncBackendUser }}
+      value={{ ...state, signIn, signInWithGoogle, signOut, syncBackendUser }}
     >
       {children}
     </AuthContext.Provider>
