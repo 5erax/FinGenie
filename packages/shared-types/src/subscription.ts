@@ -1,5 +1,5 @@
 export type SubscriptionPlan = "free" | "monthly" | "yearly";
-export type SubscriptionStatus = "active" | "cancelled" | "expired";
+export type SubscriptionStatus = "pending" | "active" | "cancelled" | "expired";
 export type PaymentStatus = "pending" | "success" | "failed" | "cancelled";
 
 export interface Subscription {
