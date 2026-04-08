@@ -206,6 +206,9 @@ export default function ProfileScreen() {
       case 'alerts':
         router.push('/alerts');
         break;
+      case 'review':
+        router.push('/review');
+        break;
       case 'security':
         router.push('/security');
         break;
@@ -244,6 +247,13 @@ export default function ProfileScreen() {
       label: 'Thông báo',
       color: colors.danger,
       badge: unreadCount && unreadCount > 0 ? unreadCount : null,
+    },
+    {
+      key: 'review',
+      icon: 'star-outline' as const,
+      label: 'Đánh giá FinGenie',
+      color: '#fbbf24',
+      badge: null,
     },
     {
       key: 'security',

@@ -1,45 +1,107 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-const testimonials = [
+interface FeaturedReview {
+  id: string;
+  rating: number;
+  content: string;
+  user: {
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
+}
+
+// ─── Fallback Data (shown while API loads or if no featured reviews) ────────
+
+const fallbackTestimonials: FeaturedReview[] = [
   {
-    name: "Minh Anh",
-    role: "Sinh viên, 22 tuổi",
-    initial: "M",
-    color: "#6366f1",
+    id: "fallback-1",
     rating: 5,
-    quote:
+    content:
       "FinGenie giúp mình kiểm soát chi tiêu tốt hơn rất nhiều. Từ khi dùng app, mình tiết kiệm được 2 triệu mỗi tháng!",
+    user: { id: "1", displayName: "Minh Anh", avatarUrl: null },
   },
   {
-    name: "Hoàng Nam",
-    role: "Freelancer, 25 tuổi",
-    initial: "H",
-    color: "#10b981",
+    id: "fallback-2",
     rating: 5,
-    quote:
+    content:
       "AI Coach tư vấn cực kỳ hữu ích. Mình đã lập được quỹ khẩn cấp sau 3 tháng sử dụng.",
+    user: { id: "2", displayName: "Hoàng Nam", avatarUrl: null },
   },
   {
-    name: "Thu Hà",
-    role: "Nhân viên văn phòng, 23 tuổi",
-    initial: "T",
-    color: "#f59e0b",
+    id: "fallback-3",
     rating: 4,
-    quote:
+    content:
       "Thú cưng trong app rất dễ thương và tạo động lực ghi chép chi tiêu mỗi ngày.",
+    user: { id: "3", displayName: "Thu Hà", avatarUrl: null },
   },
-] as const;
+];
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
+
+// Assign a consistent color based on the first char of the user id
+const AVATAR_COLORS = [
+  "#6366f1",
+  "#10b981",
+  "#f59e0b",
+  "#ec4899",
+  "#06b6d4",
+  "#8b5cf6",
+];
+function getAvatarColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function TestimonialsSection() {
+  const [reviews, setReviews] =
+    useState<FeaturedReview[]>(fallbackTestimonials);
+
+  useEffect(() => {
+    const API_URL =
+      process.env.NEXT_PUBLIC_API_URL ??
+      "https://fingenie-production.up.railway.app/api/v1";
+
+    fetch(`${API_URL}/reviews/featured`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch");
+        return res.json();
+      })
+      .then((data: { data: FeaturedReview[]; total: number }) => {
+        if (data.data && data.data.length > 0) {
+          setReviews(data.data.slice(0, 6)); // Show up to 6
+        }
+        // If no featured reviews yet, keep fallback data
+      })
+      .catch(() => {
+        // Silently use fallback data
+      });
+  }, []);
+
+  // Responsive grid: 3 cols on desktop, adapt if fewer reviews
+  const displayReviews = reviews.slice(0, 6);
+  const gridCols =
+    displayReviews.length <= 2
+      ? "grid-cols-1 md:grid-cols-2"
+      : "grid-cols-1 md:grid-cols-3";
+
   return (
     <section
       id="testimonials"
@@ -66,12 +128,12 @@ export function TestimonialsSection() {
         />
 
         {/* Testimonial grid */}
-        <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-3">
-          {testimonials.map((t, index) => (
+        <div className={`grid w-full gap-6 ${gridCols}`}>
+          {displayReviews.map((t, index) => (
             <GlassCard
-              key={t.name}
+              key={t.id}
               variant="glow"
-              glowColor={index === 1 ? "primary" : "accent"}
+              glowColor={index % 2 === 1 ? "primary" : "accent"}
               className="flex flex-col gap-5"
               initial={{ opacity: 0, y: 44 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -92,7 +154,7 @@ export function TestimonialsSection() {
 
               {/* Quote text */}
               <p className="flex-1 text-sm leading-relaxed text-zinc-300">
-                {t.quote}
+                {t.content}
               </p>
 
               {/* Stars */}
@@ -117,16 +179,24 @@ export function TestimonialsSection() {
                 {/* Avatar */}
                 <motion.div
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                  style={{ backgroundColor: t.color }}
+                  style={{ backgroundColor: getAvatarColor(t.id) }}
                   whileHover={{ scale: 1.1 }}
                 >
-                  {t.initial}
+                  {t.user.avatarUrl ? (
+                    <img
+                      src={t.user.avatarUrl}
+                      alt={t.user.displayName}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    getInitial(t.user.displayName)
+                  )}
                 </motion.div>
                 <div>
                   <p className="text-sm font-semibold text-zinc-200">
-                    {t.name}
+                    {t.user.displayName}
                   </p>
-                  <p className="text-xs text-zinc-500">{t.role}</p>
+                  <p className="text-xs text-zinc-500">Người dùng FinGenie</p>
                 </div>
               </div>
             </GlassCard>

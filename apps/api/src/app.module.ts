@@ -14,6 +14,7 @@ import { AlertModule } from "./alert";
 import { AiChatModule } from "./ai-chat";
 import { PaymentModule } from "./payment";
 import { GamificationModule } from "./gamification";
+import { ReviewModule } from "./review";
 import { AdminModule } from "./admin";
 
 @Module({
@@ -40,6 +41,7 @@ import { AdminModule } from "./admin";
     AiChatModule,
     PaymentModule,
     GamificationModule,
+    ReviewModule,
     AdminModule,
     HealthModule,
   ],
