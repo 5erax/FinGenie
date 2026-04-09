@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import {
   fetchAdminAIChatSessions,
+  fetchAIChatStats,
   type AdminAIChatSession,
+  type AIChatStats,
   type PaginatedResponse,
 } from "@/lib/admin-api";
 import { PageHeader } from "@/components/admin/page-header";
@@ -25,24 +27,11 @@ export default function AdminAIChatPage() {
   const [data, setData] = useState<PaginatedResponse<AdminAIChatSession> | null>(
     null,
   );
-  const [allSessions, setAllSessions] = useState<AdminAIChatSession[]>([]);
+  const [chatStats, setChatStats] = useState<AIChatStats | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Compute "this month" count from the bulk-fetched stats data
-  const thisMonthCount = (() => {
-    if (!allSessions.length) return 0;
-    const now = new Date();
-    return allSessions.filter((s) => {
-      const d = new Date(s.createdAt);
-      return (
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear()
-      );
-    }).length;
-  })();
 
   const fetchTablePage = useCallback((p: number) => {
     setLoading(true);
@@ -59,9 +48,9 @@ export default function AdminAIChatPage() {
   }, []);
 
   useEffect(() => {
-    // One-time bulk fetch for stats computation (this month count)
-    fetchAdminAIChatSessions({ page: 1, limit: 1000 })
-      .then((res) => setAllSessions(res.data))
+    // Fetch stats from server (lightweight count query)
+    fetchAIChatStats()
+      .then(setChatStats)
       .catch(console.error)
       .finally(() => setStatsLoading(false));
 
@@ -102,7 +91,7 @@ export default function AdminAIChatPage() {
         />
         <StatCard
           title="Tháng này"
-          value={statsLoading ? "..." : thisMonthCount}
+          value={statsLoading ? "..." : (chatStats?.thisMonth ?? 0)}
           icon={Calendar}
           delay={0.1}
         />

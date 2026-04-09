@@ -147,7 +147,7 @@ export default function GamificationPage() {
         );
       })
       .finally(() => setAchievementsLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (

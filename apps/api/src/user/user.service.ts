@@ -146,7 +146,7 @@ export class UserService {
       activeSubscriptions,
       recentUsers,
       recentTransactions,
-    ] = await this.prisma.$transaction([
+    ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.transaction.count(),
       this.prisma.wallet.count(),

@@ -154,7 +154,6 @@ export function DashboardSidebar() {
         {/* User info */}
         <div className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2">
           {user?.photoURL ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.photoURL}
               alt="Avatar"

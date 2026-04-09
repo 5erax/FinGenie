@@ -30,7 +30,7 @@ export class AdminService {
       if (endDate) where.date.lte = new Date(endDate);
     }
 
-    const [transactions, total] = await this.prisma.$transaction([
+    const [transactions, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
         skip,
@@ -88,7 +88,7 @@ export class AdminService {
     }
     if (userId) where.userId = userId;
 
-    const [wallets, total] = await this.prisma.$transaction([
+    const [wallets, total] = await Promise.all([
       this.prisma.wallet.findMany({
         where,
         skip,
@@ -139,7 +139,7 @@ export class AdminService {
     if (isDefault === "true") where.isDefault = true;
     else if (isDefault === "false") where.isDefault = false;
 
-    const [categories, total] = await this.prisma.$transaction([
+    const [categories, total] = await Promise.all([
       this.prisma.category.findMany({
         where,
         skip,
@@ -245,7 +245,7 @@ export class AdminService {
       where.plan = plan as Prisma.EnumSubscriptionPlanFilter["equals"];
     }
 
-    const [subscriptions, total] = await this.prisma.$transaction([
+    const [subscriptions, total] = await Promise.all([
       this.prisma.subscription.findMany({
         where,
         skip,
@@ -300,7 +300,7 @@ export class AdminService {
       where.status = status as Prisma.EnumPaymentStatusFilter["equals"];
     }
 
-    const [payments, total] = await this.prisma.$transaction([
+    const [payments, total] = await Promise.all([
       this.prisma.paymentOrder.findMany({
         where,
         skip,
@@ -342,7 +342,7 @@ export class AdminService {
     const { page = 1, limit = 20 } = params;
     const skip = (page - 1) * limit;
 
-    const [pets, total] = await this.prisma.$transaction([
+    const [pets, total] = await Promise.all([
       this.prisma.pet.findMany({
         skip,
         take: limit,
@@ -401,7 +401,7 @@ export class AdminService {
     const { page = 1, limit = 20 } = params;
     const skip = (page - 1) * limit;
 
-    const [sessions, total] = await this.prisma.$transaction([
+    const [sessions, total] = await Promise.all([
       this.prisma.aIChatSession.findMany({
         skip,
         take: limit,
@@ -431,6 +431,20 @@ export class AdminService {
       limit,
       totalPages,
     };
+  }
+
+  async getAIChatStats() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [total, thisMonth] = await Promise.all([
+      this.prisma.aIChatSession.count(),
+      this.prisma.aIChatSession.count({
+        where: { createdAt: { gte: startOfMonth } },
+      }),
+    ]);
+
+    return { total, thisMonth };
   }
 
   // ── Analytics ─────────────────────────────────────────────
@@ -548,7 +562,7 @@ export class AdminService {
     if (isFeatured === "true") where.isFeatured = true;
     else if (isFeatured === "false") where.isFeatured = false;
 
-    const [reviews, total] = await this.prisma.$transaction([
+    const [reviews, total] = await Promise.all([
       this.prisma.review.findMany({
         where,
         skip,
@@ -592,7 +606,7 @@ export class AdminService {
 
   async getReviewStats() {
     const [total, pending, approved, rejected, featured, avgResult] =
-      await this.prisma.$transaction([
+      await Promise.all([
         this.prisma.review.count(),
         this.prisma.review.count({ where: { status: "pending" } }),
         this.prisma.review.count({ where: { status: "approved" } }),
@@ -704,12 +718,11 @@ export class AdminService {
     }
 
     // Get counts for overview
-    const [userCount, transactionCount, reviewCount] =
-      await this.prisma.$transaction([
-        this.prisma.user.count(),
-        this.prisma.transaction.count(),
-        this.prisma.review.count(),
-      ]);
+    const [userCount, transactionCount, reviewCount] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.transaction.count(),
+      this.prisma.review.count(),
+    ]);
 
     return {
       api: { status: "ok", uptime: Math.floor(uptime) },

@@ -158,6 +158,7 @@ model User {
   streak           UserStreak?
   reviews          Review[]
 
+  @@index([createdAt])
   @@map("users")
 }
 
@@ -196,6 +197,7 @@ model Wallet {
   transactions Transaction[]
 
   @@index([userId])
+  @@index([createdAt])
   @@map("wallets")
 }
 
@@ -221,6 +223,8 @@ model Transaction {
   @@index([userId, type])
   @@index([walletId, date])
   @@index([categoryId])
+  @@index([date])
+  @@index([createdAt])
   @@map("transactions")
 }
 
@@ -307,6 +311,7 @@ model AIChatSession {
 
   @@index([userId])
   @@index([userId, updatedAt])
+  @@index([createdAt])
   @@map("ai_chat_sessions")
 }
 
@@ -342,6 +347,7 @@ model Subscription {
   paymentOrders PaymentOrder[]
 
   @@index([userId, status])
+  @@index([createdAt])
   @@map("subscriptions")
 }
 
@@ -362,6 +368,8 @@ model PaymentOrder {
 
   @@index([userId])
   @@index([stripeSessionId])
+  @@index([status])
+  @@index([createdAt])
   @@map("payment_orders")
 }
 
@@ -410,6 +418,7 @@ model Pet {
   inventory PetItem[]
 
   @@index([userId])
+  @@index([createdAt])
   @@map("pets")
 }
 

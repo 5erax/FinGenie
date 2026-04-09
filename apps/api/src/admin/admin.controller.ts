@@ -244,6 +244,14 @@ export class AdminController {
     });
   }
 
+  @Get("ai-sessions/stats")
+  @ApiOperation({ summary: "Get AI chat session stats (admin)" })
+  @ApiOkResponse({ description: "AI chat stats (total, this month)" })
+  @ApiForbiddenResponse({ description: "Admin access required" })
+  async getAIChatStats() {
+    return this.adminService.getAIChatStats();
+  }
+
   // ── Analytics ─────────────────────────────────────────────
 
   @Get("analytics")

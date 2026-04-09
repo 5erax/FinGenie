@@ -87,7 +87,6 @@ export default function ProfilePage() {
         className="mb-6 flex items-center gap-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6"
       >
         {displayProfile.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={displayProfile.avatarUrl}
             alt="Avatar"

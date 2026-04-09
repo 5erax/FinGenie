@@ -135,7 +135,7 @@ export class EmailService {
       this.logger.error(
         `Failed to send OTP to ${email} via ${this.transport}: ${message}`,
       );
-      throw new Error(`Email sending failed: ${message}`);
+      throw new Error(`Email sending failed: ${message}`, { cause: err });
     }
   }
 

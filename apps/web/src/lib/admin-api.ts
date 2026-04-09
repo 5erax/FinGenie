@@ -313,6 +313,11 @@ export interface AdminAIChatSession {
   _count?: { messages: number };
 }
 
+export interface AIChatStats {
+  total: number;
+  thisMonth: number;
+}
+
 export function fetchAdminAIChatSessions(params?: {
   page?: number;
   limit?: number;
@@ -321,6 +326,10 @@ export function fetchAdminAIChatSessions(params?: {
     "/admin/ai-sessions",
     { params },
   );
+}
+
+export function fetchAIChatStats() {
+  return adminFetch<AIChatStats>("/admin/ai-sessions/stats");
 }
 
 // ── Analytics ──
