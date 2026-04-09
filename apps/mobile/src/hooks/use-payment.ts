@@ -34,13 +34,10 @@ export function usePaymentHistory() {
   });
 }
 
-// ─── PayOS ────────────────────────────────────────────────────────────────────
-
-export function useCreatePaymentLink() {
+export function useCreateCheckout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreatePaymentDto) =>
-      paymentService.createPaymentLink(data),
+    mutationFn: (data: CreatePaymentDto) => paymentService.createCheckout(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
     },
@@ -50,7 +47,7 @@ export function useCreatePaymentLink() {
 export function useVerifyPayment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (orderCode: string) => paymentService.verifyPayment(orderCode),
+    mutationFn: (sessionId: string) => paymentService.verifyPayment(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
     },
@@ -60,31 +57,7 @@ export function useVerifyPayment() {
 export function useCancelPayment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (orderCode: string) => paymentService.cancelPayment(orderCode),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
-    },
-  });
-}
-
-// ─── Stripe ───────────────────────────────────────────────────────────────────
-
-export function useCreateStripeCheckout() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: CreatePaymentDto) =>
-      paymentService.createStripeCheckout(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
-    },
-  });
-}
-
-export function useVerifyStripePayment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (sessionId: string) =>
-      paymentService.verifyStripePayment(sessionId),
+    mutationFn: (sessionId: string) => paymentService.cancelPayment(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
     },

@@ -148,7 +148,7 @@ export default function SubscriptionPage() {
                 ))}
               </ul>
               <p className="mt-6 text-center text-xs text-zinc-500">
-                Thanh toán qua app FinGenie (PayOS hoặc Stripe)
+                Thanh toán qua app FinGenie (Stripe · Visa / Mastercard)
               </p>
             </motion.div>
           ))}

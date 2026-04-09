@@ -7,14 +7,7 @@ export interface CreatePaymentDto {
   cancelUrl?: string;
 }
 
-export interface PaymentLink {
-  paymentLink: string;
-  orderCode: number;
-  subscription: Subscription;
-  order: PaymentOrder;
-}
-
-export interface StripeCheckout {
+export interface CheckoutResponse {
   checkoutUrl: string;
   sessionId: string;
   subscription: Subscription;
@@ -33,45 +26,25 @@ export interface VerifyPaymentResponse {
   message: string;
 }
 
-export type PaymentMethod = "payos" | "stripe";
-
 export const paymentService = {
-  // ─── PayOS ──────────────────────────────────────────────────────────────────
-
-  async createPaymentLink(data: CreatePaymentDto): Promise<PaymentLink> {
-    const response = await api.post<PaymentLink>("/payments/create-link", data);
-    return response.data;
-  },
-
-  async verifyPayment(orderCode: string): Promise<VerifyPaymentResponse> {
-    const response = await api.post<VerifyPaymentResponse>(
-      `/payments/verify/${orderCode}`,
-    );
-    return response.data;
-  },
-
-  async cancelPayment(orderCode: string): Promise<void> {
-    await api.post(`/payments/${orderCode}/cancel`);
-  },
-
-  // ─── Stripe ─────────────────────────────────────────────────────────────────
-
-  async createStripeCheckout(data: CreatePaymentDto): Promise<StripeCheckout> {
-    const response = await api.post<StripeCheckout>(
-      "/payments/stripe/create-checkout",
+  async createCheckout(data: CreatePaymentDto): Promise<CheckoutResponse> {
+    const response = await api.post<CheckoutResponse>(
+      "/payments/create-checkout",
       data,
     );
     return response.data;
   },
 
-  async verifyStripePayment(sessionId: string): Promise<VerifyPaymentResponse> {
+  async verifyPayment(sessionId: string): Promise<VerifyPaymentResponse> {
     const response = await api.post<VerifyPaymentResponse>(
-      `/payments/stripe/verify/${sessionId}`,
+      `/payments/verify/${sessionId}`,
     );
     return response.data;
   },
 
-  // ─── Common ─────────────────────────────────────────────────────────────────
+  async cancelPayment(sessionId: string): Promise<void> {
+    await api.post(`/payments/${sessionId}/cancel`);
+  },
 
   async getStatus(): Promise<PaymentStatusResponse> {
     const response = await api.get<PaymentStatusResponse>("/payments/status");
